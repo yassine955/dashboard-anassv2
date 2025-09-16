@@ -1,21 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { invoiceService } from '@/lib/firebase-service';
+import { Invoice } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, AlertCircle, ArrowLeft, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 
-export default function PaymentSuccessPage() {
+function PaymentSuccessContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const { currentUser } = useAuth();
     const [loading, setLoading] = useState(true);
-    const [invoice, setInvoice] = useState(null);
+    const [invoice, setInvoice] = useState<Invoice | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     const invoiceId = searchParams.get('invoice');
@@ -239,5 +240,17 @@ export default function PaymentSuccessPage() {
                 </motion.div>
             </div>
         </div>
+    );
+}
+
+export default function PaymentSuccessPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex items-center justify-center min-h-screen bg-gray-50">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        }>
+            <PaymentSuccessContent />
+        </Suspense>
     );
 }

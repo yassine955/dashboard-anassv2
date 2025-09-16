@@ -154,7 +154,7 @@ export function generateInvoicePDF(
  * Download a PDF in the browser
  */
 export function downloadPDF(pdfBuffer: Uint8Array, filename: string) {
-    const blob = new Blob([pdfBuffer], { type: "application/pdf" })
+    const blob = new Blob([pdfBuffer as BlobPart], { type: "application/pdf" })
     const url = URL.createObjectURL(blob)
 
     const link = document.createElement("a")

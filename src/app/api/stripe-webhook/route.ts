@@ -76,35 +76,8 @@ export async function POST(request: NextRequest) {
                 break;
             }
 
-            case "payment_link.payment_succeeded": {
-                const paymentLink = event.data.object as Stripe.PaymentLink;
-
-                // For payment links, we need to get the session details
-                if (paymentLink.id) {
-                    try {
-                        // Get sessions for this payment link to find the invoice
-                        const sessions = await stripe.checkout.sessions.list({
-                            payment_link: paymentLink.id,
-                            limit: 1,
-                        });
-
-                        if (sessions.data.length > 0) {
-                            const session = sessions.data[0];
-                            const invoiceId = session.metadata?.invoiceId;
-
-                            if (invoiceId) {
-                                await updateDoc(doc(db, 'invoices', invoiceId), {
-                                    status: "paid",
-                                });
-                                console.log(`Invoice ${invoiceId} marked as paid via payment link`);
-                            }
-                        }
-                    } catch (error) {
-                        console.error("Error processing payment link webhook:", error);
-                    }
-                }
-                break;
-            }
+            // Payment links don't have a specific "payment_succeeded" event
+            // They use checkout.session.completed events instead
 
             case "invoice.payment_succeeded": {
                 const invoice = event.data.object as Stripe.Invoice;

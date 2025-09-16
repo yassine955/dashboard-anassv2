@@ -57,7 +57,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
 
             // Create new user profile
-            const newUserProfile: User = {
+            const newUserProfile = {
               uid: user.uid,
               email: user.email!,
               displayName: user.displayName || '',
@@ -83,7 +83,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
             };
 
             await setDoc(doc(db, 'users', user.uid), newUserProfile);
-            setUserProfile(newUserProfile);
+            // Create a proper User object for the state (without serverTimestamp)
+            const userForState: User = {
+              ...newUserProfile,
+              createdAt: new Date() as any,
+              updatedAt: new Date() as any
+            };
+            setUserProfile(userForState);
           }
         } catch (error) {
           console.error('Error fetching user profile:', error);
@@ -127,7 +133,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       };
 
       await setDoc(doc(db, 'users', currentUser.uid), updatedData, { merge: true });
-      setUserProfile(prev => prev ? { ...prev, ...updatedData } : null);
+      // Update state with proper timestamp (not FieldValue)
+      setUserProfile(prev => prev ? {
+        ...prev,
+        ...data,
+        updatedAt: new Date() as any
+      } : null);
     } catch (error) {
       console.error('Error updating user profile:', error);
       throw error;

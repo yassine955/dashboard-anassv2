@@ -152,3 +152,5 @@ If you're still having issues:
 4. Verify all environment variables are set correctly
 
 The webhook setup is crucial for automatic invoice status updates. Without it, you'll need to manually mark invoices as paid after receiving payments.
+
+stripe listen --forward-to localhost:3000/api/stripe-webhook

@@ -52,20 +52,41 @@ export const clientService = {
     },
 
     // Get single client
-    async getClient(clientId: string): Promise<Client> {
+    async getClient(clientId: string, userId?: string): Promise<Client> {
         const docRef = doc(db, "clients", clientId)
         const docSnap = await getDoc(docRef)
 
         if (!docSnap.exists()) throw new Error("Client not found")
-        return { id: docSnap.id, ...docSnap.data() } as Client
+
+        const clientData = { id: docSnap.id, ...docSnap.data() } as Client
+
+        // If userId is provided, verify ownership
+        if (userId && clientData.userId !== userId) {
+            throw new Error("Access denied: Client belongs to another user")
+        }
+
+        return clientData
     },
 
     // Update client
     async updateClient(
         clientId: string,
-        updateData: Partial<Client>
+        updateData: Partial<Client>,
+        userId?: string
     ): Promise<Client> {
         const docRef = doc(db, "clients", clientId)
+
+        // If userId is provided, verify ownership before updating
+        if (userId) {
+            const docSnap = await getDoc(docRef)
+            if (!docSnap.exists()) throw new Error("Client not found")
+
+            const clientData = docSnap.data() as Client
+            if (clientData.userId !== userId) {
+                throw new Error("Access denied: Client belongs to another user")
+            }
+        }
+
         const updatedData = {
             ...updateData,
             updatedAt: serverTimestamp(),
@@ -76,7 +97,19 @@ export const clientService = {
     },
 
     // Delete client
-    async deleteClient(clientId: string): Promise<string> {
+    async deleteClient(clientId: string, userId?: string): Promise<string> {
+        // If userId is provided, verify ownership before deleting
+        if (userId) {
+            const docRef = doc(db, "clients", clientId)
+            const docSnap = await getDoc(docRef)
+            if (!docSnap.exists()) throw new Error("Client not found")
+
+            const clientData = docSnap.data() as Client
+            if (clientData.userId !== userId) {
+                throw new Error("Access denied: Client belongs to another user")
+            }
+        }
+
         await deleteDoc(doc(db, "clients", clientId))
         return clientId
     },
@@ -137,9 +170,22 @@ export const productService = {
 
     async updateProduct(
         productId: string,
-        updateData: Partial<Product>
+        updateData: Partial<Product>,
+        userId?: string
     ): Promise<Product> {
         const docRef = doc(db, "products", productId)
+
+        // If userId is provided, verify ownership before updating
+        if (userId) {
+            const docSnap = await getDoc(docRef)
+            if (!docSnap.exists()) throw new Error("Product not found")
+
+            const productData = docSnap.data() as Product
+            if (productData.userId !== userId) {
+                throw new Error("Access denied: Product belongs to another user")
+            }
+        }
+
         const updatedData = {
             ...updateData,
             updatedAt: serverTimestamp(),
@@ -149,7 +195,19 @@ export const productService = {
         return { id: productId, ...updatedData } as Product
     },
 
-    async deleteProduct(productId: string): Promise<string> {
+    async deleteProduct(productId: string, userId?: string): Promise<string> {
+        // If userId is provided, verify ownership before deleting
+        if (userId) {
+            const docRef = doc(db, "products", productId)
+            const docSnap = await getDoc(docRef)
+            if (!docSnap.exists()) throw new Error("Product not found")
+
+            const productData = docSnap.data() as Product
+            if (productData.userId !== userId) {
+                throw new Error("Access denied: Product belongs to another user")
+            }
+        }
+
         await deleteDoc(doc(db, "products", productId))
         return productId
     },
@@ -216,19 +274,40 @@ export const invoiceService = {
         )
     },
 
-    async getInvoice(invoiceId: string): Promise<Invoice> {
+    async getInvoice(invoiceId: string, userId?: string): Promise<Invoice> {
         const docRef = doc(db, "invoices", invoiceId)
         const docSnap = await getDoc(docRef)
 
         if (!docSnap.exists()) throw new Error("Invoice not found")
-        return { id: docSnap.id, ...docSnap.data() } as Invoice
+
+        const invoiceData = { id: docSnap.id, ...docSnap.data() } as Invoice
+
+        // If userId is provided, verify ownership
+        if (userId && invoiceData.userId !== userId) {
+            throw new Error("Access denied: Invoice belongs to another user")
+        }
+
+        return invoiceData
     },
 
     async updateInvoice(
         invoiceId: string,
-        updateData: Partial<Invoice>
+        updateData: Partial<Invoice>,
+        userId?: string
     ): Promise<Invoice> {
         const docRef = doc(db, "invoices", invoiceId)
+
+        // If userId is provided, verify ownership before updating
+        if (userId) {
+            const docSnap = await getDoc(docRef)
+            if (!docSnap.exists()) throw new Error("Invoice not found")
+
+            const invoiceData = docSnap.data() as Invoice
+            if (invoiceData.userId !== userId) {
+                throw new Error("Access denied: Invoice belongs to another user")
+            }
+        }
+
         const updatedData = {
             ...updateData,
             updatedAt: serverTimestamp(),
@@ -238,7 +317,19 @@ export const invoiceService = {
         return { id: invoiceId, ...updatedData } as Invoice
     },
 
-    async deleteInvoice(invoiceId: string): Promise<string> {
+    async deleteInvoice(invoiceId: string, userId?: string): Promise<string> {
+        // If userId is provided, verify ownership before deleting
+        if (userId) {
+            const docRef = doc(db, "invoices", invoiceId)
+            const docSnap = await getDoc(docRef)
+            if (!docSnap.exists()) throw new Error("Invoice not found")
+
+            const invoiceData = docSnap.data() as Invoice
+            if (invoiceData.userId !== userId) {
+                throw new Error("Access denied: Invoice belongs to another user")
+            }
+        }
+
         await deleteDoc(doc(db, "invoices", invoiceId))
         return invoiceId
     },

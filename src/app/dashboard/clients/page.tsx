@@ -107,7 +107,7 @@ export default function ClientsPage() {
         await clientService.updateClient(editingClient.id, {
           ...formData,
           updatedAt: Timestamp.now()
-        });
+        }, currentUser?.uid);
         toast.success('Klant succesvol bijgewerkt!');
       } else {
         await clientService.createClient(currentUser.uid, formData);
@@ -148,7 +148,7 @@ export default function ClientsPage() {
     }
 
     try {
-      await clientService.deleteClient(client.id);
+      await clientService.deleteClient(client.id, currentUser?.uid);
       toast.success('Klant succesvol verwijderd!');
     } catch (error) {
       toast.error('Er is een fout opgetreden bij het verwijderen van de klant.');

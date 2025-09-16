@@ -202,7 +202,7 @@ export default function InvoicesPage() {
     }
 
     try {
-      await invoiceService.deleteInvoice(invoice.id);
+      await invoiceService.deleteInvoice(invoice.id, currentUser?.uid);
       toast.success('Factuur succesvol verwijderd!');
     } catch (error) {
       toast.error('Er is een fout opgetreden bij het verwijderen van de factuur.');
@@ -564,17 +564,16 @@ export default function InvoicesPage() {
                         </TableCell>
                         <TableCell className="font-medium">€{invoice.totalAmount.toFixed(2)}</TableCell>
                         <TableCell>
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            invoice.status === 'paid' ? 'bg-green-100 text-green-800' :
-                            invoice.status === 'sent' ? 'bg-blue-100 text-blue-800' :
-                            invoice.status === 'overdue' ? 'bg-red-100 text-red-800' :
-                            invoice.status === 'draft' ? 'bg-gray-100 text-gray-800' :
-                            'bg-yellow-100 text-yellow-800'
-                          }`}>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${invoice.status === 'paid' ? 'bg-green-100 text-green-800' :
+                              invoice.status === 'sent' ? 'bg-blue-100 text-blue-800' :
+                                invoice.status === 'overdue' ? 'bg-red-100 text-red-800' :
+                                  invoice.status === 'draft' ? 'bg-gray-100 text-gray-800' :
+                                    'bg-yellow-100 text-yellow-800'
+                            }`}>
                             {invoice.status === 'paid' ? 'Betaald' :
-                             invoice.status === 'sent' ? 'Verzonden' :
-                             invoice.status === 'overdue' ? 'Verlopen' :
-                             invoice.status === 'draft' ? 'Concept' : 'Openstaand'}
+                              invoice.status === 'sent' ? 'Verzonden' :
+                                invoice.status === 'overdue' ? 'Verlopen' :
+                                  invoice.status === 'draft' ? 'Concept' : 'Openstaand'}
                           </span>
                         </TableCell>
                         <TableCell>

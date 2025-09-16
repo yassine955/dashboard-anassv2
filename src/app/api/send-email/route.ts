@@ -20,6 +20,8 @@ export async function POST(request: NextRequest) {
     if (invoiceId && clientId) {
       try {
         // Get invoice and client data
+        // Note: For email sending, we don't have userId context, so we skip ownership verification
+        // This is acceptable since we're only reading data for email generation
         const [invoice, client] = await Promise.all([
           invoiceService.getInvoice(invoiceId),
           clientService.getClient(clientId)

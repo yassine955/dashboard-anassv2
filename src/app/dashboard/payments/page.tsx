@@ -135,7 +135,7 @@ export default function PaymentsPage() {
       await invoiceService.updateInvoice(invoice.id, {
         paymentLink: url,
         status: 'sent'
-      });
+      }, currentUser?.uid);
 
       const message = type === 'checkout_session'
         ? 'Checkout sessie succesvol aangemaakt!'
@@ -191,7 +191,7 @@ export default function PaymentsPage() {
       // Update invoice status
       await invoiceService.updateInvoice(selectedInvoice.id, {
         status: 'sent'
-      });
+      }, currentUser?.uid);
 
       toast.success(`Factuur succesvol verzonden naar ${client.email}!`);
       setIsEmailDialogOpen(false);
@@ -209,7 +209,7 @@ export default function PaymentsPage() {
     try {
       await invoiceService.updateInvoice(invoice.id, {
         status: 'paid'
-      });
+      }, currentUser?.uid);
       toast.success('Factuur gemarkeerd als betaald!');
     } catch (error) {
       toast.error('Er is een fout opgetreden bij het bijwerken van de factuur.');

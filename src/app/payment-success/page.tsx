@@ -31,11 +31,13 @@ export default function PaymentSuccessPage() {
             try {
                 // Get invoice details - this will work even without authentication
                 // as we're just displaying invoice info, not modifying user data
+                // For payment success pages, we allow access to invoice data for display purposes
                 const invoiceData = await invoiceService.getInvoice(invoiceId);
                 if (invoiceData) {
                     setInvoice(invoiceData);
 
                     // If payment was successful and invoice is not already marked as paid, update it
+                    // Note: This update happens without user verification since it's a payment completion
                     if (paymentStatus === 'success' && invoiceData.status !== 'paid') {
                         try {
                             await invoiceService.updateInvoice(invoiceId, {

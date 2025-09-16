@@ -104,7 +104,7 @@ export default function ProductsPage() {
         await productService.updateProduct(editingProduct.id, {
           ...formData,
           updatedAt: Timestamp.now()
-        });
+        }, currentUser?.uid);
         toast.success('Product succesvol bijgewerkt!');
       } else {
         await productService.createProduct(currentUser.uid, formData);
@@ -143,7 +143,7 @@ export default function ProductsPage() {
     }
 
     try {
-      await productService.deleteProduct(product.id);
+      await productService.deleteProduct(product.id, currentUser?.uid);
       toast.success('Product succesvol verwijderd!');
     } catch (error) {
       toast.error('Er is een fout opgetreden bij het verwijderen van het product.');
@@ -415,13 +415,12 @@ export default function ProductsPage() {
                       <TableCell className="font-medium">€{product.basePrice.toFixed(2)}</TableCell>
                       <TableCell>{product.deliveryTime || '-'}</TableCell>
                       <TableCell>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          product.status === 'active' ? 'bg-green-100 text-green-800' :
-                          product.status === 'inactive' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${product.status === 'active' ? 'bg-green-100 text-green-800' :
+                            product.status === 'inactive' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-gray-100 text-gray-800'
+                          }`}>
                           {product.status === 'active' ? 'Actief' :
-                           product.status === 'inactive' ? 'Inactief' : 'Stopgezet'}
+                            product.status === 'inactive' ? 'Inactief' : 'Stopgezet'}
                         </span>
                       </TableCell>
                       <TableCell>

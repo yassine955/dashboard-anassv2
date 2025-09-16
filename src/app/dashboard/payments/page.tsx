@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { invoiceService, clientService } from '@/lib/firebase-service';
 import { sendEmail, generateInvoiceEmailHTML } from '@/lib/email';
 import { Invoice, Client } from '@/types';
+import { validatePaymentAmount, validateInvoiceForPayment, formatPaymentError } from '@/lib/payment-validation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -25,7 +26,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Search, Mail, ExternalLink, CreditCard, CheckCircle, Clock, AlertCircle, Euro } from 'lucide-react';
+import { Search, Mail, ExternalLink, CreditCard, CheckCircle, Clock, AlertCircle, Euro, Zap, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 
@@ -38,6 +39,7 @@ export default function PaymentsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+  const [isPaymentMethodDialogOpen, setIsPaymentMethodDialogOpen] = useState(false);
   const [emailSending, setEmailSending] = useState(false);
   const [customMessage, setCustomMessage] = useState('');
 
@@ -76,9 +78,22 @@ export default function PaymentsPage() {
     setFilteredInvoices(filtered);
   }, [invoices, clients, searchTerm]);
 
-  const createPaymentLink = async (invoice: Invoice) => {
+  const createPaymentLink = async (invoice: Invoice, useCheckoutSession = false) => {
     try {
-      // Create Stripe payment link
+      // Validate invoice and amount before creating payment link
+      const invoiceValidation = validateInvoiceForPayment(invoice);
+      if (!invoiceValidation.isValid) {
+        invoiceValidation.errors.forEach(error => toast.error(error));
+        return null;
+      }
+
+      const amountValidation = validatePaymentAmount(invoice.totalAmount);
+      if (!amountValidation.isValid) {
+        amountValidation.errors.forEach(error => toast.error(error));
+        return null;
+      }
+
+      // Create Stripe payment link or checkout session
       const response = await fetch('/api/create-payment-link', {
         method: 'POST',
         headers: {
@@ -88,18 +103,23 @@ export default function PaymentsPage() {
           invoiceId: invoice.id,
           amount: invoice.totalAmount,
           description: `Factuur ${invoice.invoiceNumber}`,
+          clientId: invoice.clientId,
+          useCheckoutSession,
           metadata: {
             invoiceId: invoice.id,
             clientId: invoice.clientId,
+            invoiceNumber: invoice.invoiceNumber,
           },
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create payment link');
+        const errorData = await response.json();
+        const formattedError = formatPaymentError(errorData.error || 'Failed to create payment link');
+        throw new Error(formattedError);
       }
 
-      const { url } = await response.json();
+      const { url, type } = await response.json();
 
       // Update invoice with payment link
       await invoiceService.updateInvoice(invoice.id, {
@@ -107,10 +127,14 @@ export default function PaymentsPage() {
         status: 'sent'
       });
 
-      toast.success('Betaallink succesvol aangemaakt!');
+      const message = type === 'checkout_session'
+        ? 'Checkout sessie succesvol aangemaakt!'
+        : 'Betaallink succesvol aangemaakt!';
+      toast.success(message);
       return url;
     } catch (error) {
-      toast.error('Er is een fout opgetreden bij het aanmaken van de betaallink.');
+      const formattedError = formatPaymentError(error);
+      toast.error(formattedError);
       console.error('Error creating payment link:', error);
       return null;
     }
@@ -188,6 +212,21 @@ export default function PaymentsPage() {
     setSelectedInvoice(invoice);
     setCustomMessage('');
     setIsEmailDialogOpen(true);
+  };
+
+  const openPaymentMethodDialog = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    setIsPaymentMethodDialogOpen(true);
+  };
+
+  const createPaymentWithMethod = async (useCheckoutSession: boolean) => {
+    if (!selectedInvoice) return;
+
+    const url = await createPaymentLink(selectedInvoice, useCheckoutSession);
+    if (url) {
+      setIsPaymentMethodDialogOpen(false);
+      setSelectedInvoice(null);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -379,9 +418,9 @@ export default function PaymentsPage() {
                             {getStatusIcon(invoice.status)}
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(invoice.status)}`}>
                               {invoice.status === 'paid' ? 'Betaald' :
-                               invoice.status === 'sent' ? 'Verzonden' :
-                               invoice.status === 'overdue' ? 'Verlopen' :
-                               invoice.status === 'draft' ? 'Concept' : 'Openstaand'}
+                                invoice.status === 'sent' ? 'Verzonden' :
+                                  invoice.status === 'overdue' ? 'Verlopen' :
+                                    invoice.status === 'draft' ? 'Concept' : 'Openstaand'}
                             </span>
                           </div>
                         </TableCell>
@@ -393,14 +432,24 @@ export default function PaymentsPage() {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => openEmailDialog(invoice)}
+                                  title="Verstuur per email"
                                 >
                                   <Mail className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => openPaymentMethodDialog(invoice)}
+                                  title="Maak betaallink"
+                                >
+                                  <CreditCard className="h-4 w-4" />
                                 </Button>
                                 {invoice.paymentLink && (
                                   <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() => window.open(invoice.paymentLink, '_blank')}
+                                    title="Open betaallink"
                                   >
                                     <ExternalLink className="h-4 w-4" />
                                   </Button>
@@ -409,6 +458,7 @@ export default function PaymentsPage() {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => markAsPaid(invoice)}
+                                  title="Markeer als betaald"
                                 >
                                   <CheckCircle className="h-4 w-4" />
                                 </Button>
@@ -452,6 +502,54 @@ export default function PaymentsPage() {
             </Button>
             <Button onClick={sendInvoiceEmail} disabled={emailSending}>
               {emailSending ? 'Verzenden...' : 'Factuur Verzenden'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Method Dialog */}
+      <Dialog open={isPaymentMethodDialogOpen} onOpenChange={setIsPaymentMethodDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Betaalmethode Kiezen</DialogTitle>
+            <DialogDescription>
+              Kies hoe u de betaallink wilt aanmaken voor factuur {selectedInvoice?.invoiceNumber}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-3">
+              <Button
+                variant="outline"
+                className="h-auto p-4 flex flex-col items-start space-y-2"
+                onClick={() => createPaymentWithMethod(false)}
+              >
+                <div className="flex items-center space-x-2">
+                  <CreditCard className="h-5 w-5" />
+                  <span className="font-medium">Payment Link</span>
+                </div>
+                <p className="text-sm text-gray-600 text-left">
+                  Eenvoudige betaallink die direct kan worden gedeeld
+                </p>
+              </Button>
+
+              <Button
+                variant="outline"
+                className="h-auto p-4 flex flex-col items-start space-y-2"
+                onClick={() => createPaymentWithMethod(true)}
+              >
+                <div className="flex items-center space-x-2">
+                  <Zap className="h-5 w-5" />
+                  <span className="font-medium">Checkout Session</span>
+                </div>
+                <p className="text-sm text-gray-600 text-left">
+                  Geavanceerde checkout met meer betaalmethoden (iDEAL, SEPA, etc.)
+                </p>
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsPaymentMethodDialogOpen(false)}>
+              Annuleren
             </Button>
           </DialogFooter>
         </DialogContent>

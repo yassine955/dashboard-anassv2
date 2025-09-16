@@ -47,7 +47,7 @@ export async function createPaymentLink({
         after_completion: {
             type: "redirect",
             redirect: {
-                url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/payments/success?payment=success&invoice=${invoiceId}`,
+                url: `${process.env.NEXT_PUBLIC_APP_URL}/payment-success?payment=success&invoice=${invoiceId}`,
             },
         },
         allow_promotion_codes: true,
@@ -97,8 +97,8 @@ export async function createCheckoutSession({
             clientId,
         },
         mode: "payment",
-        success_url: successUrl || `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/payments/success?payment=success&invoice=${invoiceId}`,
-        cancel_url: cancelUrl || `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/payments/success?payment=cancelled&invoice=${invoiceId}`,
+        success_url: successUrl || `${process.env.NEXT_PUBLIC_APP_URL}/payment-success?payment=success&invoice=${invoiceId}`,
+        cancel_url: cancelUrl || `${process.env.NEXT_PUBLIC_APP_URL}/payment-success?payment=cancelled&invoice=${invoiceId}`,
         billing_address_collection: "auto",
         allow_promotion_codes: true,
     })

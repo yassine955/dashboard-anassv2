@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe-server";
-import { invoiceService } from "@/lib/firebase-service";
+import { db } from '@/lib/firebase';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import Stripe from "stripe";
 
 export async function POST(request: NextRequest) {
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
                 }
 
                 // Update invoice status to paid
-                await invoiceService.updateInvoice(invoiceId, {
+                await updateDoc(doc(db, 'invoices', invoiceId), {
                     status: "paid",
                     paymentLink: session.url || undefined,
                 });
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
                 }
 
                 // Update invoice status to paid
-                await invoiceService.updateInvoice(invoiceId, {
+                await updateDoc(doc(db, 'invoices', invoiceId), {
                     status: "paid",
                 });
 
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
                             const invoiceId = session.metadata?.invoiceId;
 
                             if (invoiceId) {
-                                await invoiceService.updateInvoice(invoiceId, {
+                                await updateDoc(doc(db, 'invoices', invoiceId), {
                                     status: "paid",
                                 });
                                 console.log(`Invoice ${invoiceId} marked as paid via payment link`);
@@ -117,7 +118,7 @@ export async function POST(request: NextRequest) {
                 }
 
                 // Update invoice status to paid
-                await invoiceService.updateInvoice(invoiceId, {
+                await updateDoc(doc(db, 'invoices', invoiceId), {
                     status: "paid",
                 });
 

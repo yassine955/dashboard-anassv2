@@ -185,7 +185,8 @@ export default function PaymentsPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to send email');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to send email');
       }
 
       // Update invoice status
@@ -198,8 +199,11 @@ export default function PaymentsPage() {
       setSelectedInvoice(null);
       setCustomMessage('');
     } catch (error) {
-      toast.error('Er is een fout opgetreden bij het verzenden van de email.');
       console.error('Error sending email:', error);
+
+      // Show specific error message to user
+      const errorMessage = error instanceof Error ? error.message : 'Er is een fout opgetreden bij het verzenden van de email.';
+      toast.error(errorMessage);
     } finally {
       setEmailSending(false);
     }

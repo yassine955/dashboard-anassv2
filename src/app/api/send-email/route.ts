@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail, generateInvoiceEmailHTML } from '@/lib/email';
-import { invoiceService, clientService } from '@/lib/firebase-service';
+import { db } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { Invoice, Client } from '@/types';
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,13 +21,14 @@ export async function POST(request: NextRequest) {
 
     if (invoiceId && clientId) {
       try {
-        // Get invoice and client data
-        // Note: For email sending, we don't have userId context, so we skip ownership verification
-        // This is acceptable since we're only reading data for email generation
-        const [invoice, client] = await Promise.all([
-          invoiceService.getInvoice(invoiceId),
-          clientService.getClient(clientId)
+        // Get invoice and client data using client SDK (works in development)
+        const [invoiceDoc, clientDoc] = await Promise.all([
+          getDoc(doc(db, 'invoices', invoiceId)),
+          getDoc(doc(db, 'clients', clientId))
         ]);
+
+        const invoice = invoiceDoc.exists() ? { id: invoiceDoc.id, ...invoiceDoc.data() } as Invoice : null;
+        const client = clientDoc.exists() ? { id: clientDoc.id, ...clientDoc.data() } as Client : null;
 
         if (!invoice || !client) {
           return NextResponse.json(
@@ -47,7 +50,7 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         console.error('Error generating invoice email:', error);
         return NextResponse.json(
-          { error: 'Failed to generate invoice email' },
+          { error: `Failed to generate invoice email: ${error instanceof Error ? error.message : 'Unknown error'}` },
           { status: 500 }
         );
       }
@@ -60,6 +63,10 @@ export async function POST(request: NextRequest) {
 
     // Check email configuration
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.error('Email configuration missing:', {
+        EMAIL_USER: process.env.EMAIL_USER ? 'Set' : 'Missing',
+        EMAIL_PASS: process.env.EMAIL_PASS ? 'Set' : 'Missing'
+      });
       return NextResponse.json(
         { error: 'Email not configured. Please set EMAIL_USER and EMAIL_PASS environment variables.' },
         { status: 500 }

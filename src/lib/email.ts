@@ -51,6 +51,19 @@ export async function generateInvoiceEmailHTML(
   client: Client,
   paymentLink?: string
 ) {
+  // Validate required data
+  if (!invoice || !client) {
+    throw new Error('Invoice and client data are required');
+  }
+
+  if (!invoice.invoiceNumber || !invoice.totalAmount) {
+    throw new Error('Invoice number and total amount are required');
+  }
+
+  if (!client.firstName || !client.lastName) {
+    throw new Error('Client name is required');
+  }
+
   return `
     <!DOCTYPE html>
     <html>
@@ -80,8 +93,8 @@ export async function generateInvoiceEmailHTML(
           <h3>Factuurgegevens</h3>
           <table style="width: 100%; border-collapse: collapse;">
             <tr><td style="padding: 8px 0; font-weight: bold;">Factuurnummer:</td><td style="padding: 8px 0;">${invoice.invoiceNumber}</td></tr>
-            <tr><td style="padding: 8px 0; font-weight: bold;">Factuurdatum:</td><td style="padding: 8px 0;">${new Date(invoice.invoiceDate.seconds * 1000).toLocaleDateString("nl-NL")}</td></tr>
-            <tr><td style="padding: 8px 0; font-weight: bold;">Vervaldatum:</td><td style="padding: 8px 0;">${new Date(invoice.dueDate.seconds * 1000).toLocaleDateString("nl-NL")}</td></tr>
+            <tr><td style="padding: 8px 0; font-weight: bold;">Factuurdatum:</td><td style="padding: 8px 0;">${invoice.invoiceDate?.toDate ? invoice.invoiceDate.toDate().toLocaleDateString("nl-NL") : new Date().toLocaleDateString("nl-NL")}</td></tr>
+            <tr><td style="padding: 8px 0; font-weight: bold;">Vervaldatum:</td><td style="padding: 8px 0;">${invoice.dueDate?.toDate ? invoice.dueDate.toDate().toLocaleDateString("nl-NL") : new Date().toLocaleDateString("nl-NL")}</td></tr>
             <tr><td style="padding: 8px 0; font-weight: bold;">Totaalbedrag:</td><td style="padding: 8px 0; font-size: 18px; font-weight: bold; color: #667eea;">€${invoice.totalAmount.toFixed(2)}</td></tr>
           </table>
         </div>
@@ -141,11 +154,7 @@ export async function generatePaymentReminderHTML(
         </div>
 
         <p>Wij hebben nog geen betaling ontvangen voor factuur ${invoice.invoiceNumber}. Graag verzoeken wij u deze factuur zo spoedig mogelijk te voldoen.</p>
-        <p><strong>Factuurbedrag:</strong> €${invoice.totalAmount.toFixed(
-    2
-  )}<br><strong>Vervaldatum:</strong> ${new Date(
-    invoice.dueDate.seconds * 1000
-  ).toLocaleDateString("nl-NL")}</p>
+        <p><strong>Factuurbedrag:</strong> €${invoice.totalAmount.toFixed(2)}<br><strong>Vervaldatum:</strong> ${invoice.dueDate?.toDate ? invoice.dueDate.toDate().toLocaleDateString("nl-NL") : new Date().toLocaleDateString("nl-NL")}</p>
 
         ${paymentLink
       ? `

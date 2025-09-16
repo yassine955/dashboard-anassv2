@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { invoiceService, clientService } from '@/lib/firebase-service';
-import { sendEmail, generateInvoiceEmailHTML } from '@/lib/email';
+// Email functionality is handled via API route
 import { Invoice, Client } from '@/types';
 import { validatePaymentAmount, validateInvoiceForPayment, formatPaymentError } from '@/lib/payment-validation';
 import { Button } from '@/components/ui/button';
@@ -46,10 +46,20 @@ export default function PaymentsPage() {
   useEffect(() => {
     if (!currentUser) return;
 
-    // Subscribe to invoices
+    // Subscribe to invoices with real-time updates
     const unsubscribeInvoices = invoiceService.subscribeToInvoices(currentUser.uid, (updatedInvoices) => {
       setInvoices(updatedInvoices);
       setLoading(false);
+
+      // Check for newly paid invoices and show notifications
+      updatedInvoices.forEach(invoice => {
+        if (invoice.status === 'paid') {
+          const wasUnpaid = invoices.find(i => i.id === invoice.id && i.status !== 'paid');
+          if (wasUnpaid) {
+            toast.success(`Factuur ${invoice.invoiceNumber} is betaald! 🎉`);
+          }
+        }
+      });
     });
 
     // Load clients
@@ -65,7 +75,7 @@ export default function PaymentsPage() {
     loadClients();
 
     return () => unsubscribeInvoices();
-  }, [currentUser]);
+  }, [currentUser, invoices]);
 
   useEffect(() => {
     const filtered = invoices.filter(invoice => {
@@ -158,10 +168,7 @@ export default function PaymentsPage() {
         if (!paymentLink) return;
       }
 
-      // Generate email HTML
-      const emailHTML = generateInvoiceEmailHTML(selectedInvoice, client, paymentLink);
-
-      // Send email
+      // Send email with invoice and payment link
       const response = await fetch('/api/send-email', {
         method: 'POST',
         headers: {
@@ -170,7 +177,9 @@ export default function PaymentsPage() {
         body: JSON.stringify({
           to: client.email,
           subject: `Factuur ${selectedInvoice.invoiceNumber}`,
-          html: emailHTML,
+          invoiceId: selectedInvoice.id,
+          clientId: client.id,
+          paymentLink,
           customMessage,
         }),
       });

@@ -22,17 +22,32 @@ export default function PaymentSuccessPage() {
     const paymentStatus = searchParams.get('payment');
 
     useEffect(() => {
-        if (!currentUser || !invoiceId) {
+        if (!invoiceId) {
             setLoading(false);
             return;
         }
 
         const loadInvoice = async () => {
             try {
-                // Get invoice details
+                // Get invoice details - this will work even without authentication
+                // as we're just displaying invoice info, not modifying user data
                 const invoiceData = await invoiceService.getInvoice(invoiceId);
                 if (invoiceData) {
                     setInvoice(invoiceData);
+
+                    // If payment was successful and invoice is not already marked as paid, update it
+                    if (paymentStatus === 'success' && invoiceData.status !== 'paid') {
+                        try {
+                            await invoiceService.updateInvoice(invoiceId, {
+                                status: 'paid'
+                            });
+                            console.log(`Invoice ${invoiceId} marked as paid from success page`);
+                            toast.success('Betaling bevestigd! Factuur is gemarkeerd als betaald.');
+                        } catch (updateError) {
+                            console.error('Error updating invoice status:', updateError);
+                            // Don't show error to client, just log it
+                        }
+                    }
                 } else {
                     setError('Factuur niet gevonden');
                 }
@@ -45,14 +60,24 @@ export default function PaymentSuccessPage() {
         };
 
         loadInvoice();
-    }, [currentUser, invoiceId]);
+    }, [invoiceId, paymentStatus]);
 
     const handleGoToPayments = () => {
-        router.push('/dashboard/payments');
+        if (currentUser) {
+            router.push('/dashboard/payments');
+        } else {
+            // For clients without dashboard access, just show a message
+            toast.success('Bedankt voor uw betaling!');
+        }
     };
 
     const handleGoToInvoices = () => {
-        router.push('/dashboard/invoices');
+        if (currentUser) {
+            router.push('/dashboard/invoices');
+        } else {
+            // For clients without dashboard access, just show a message
+            toast.success('Bedankt voor uw betaling!');
+        }
     };
 
     if (loading) {
@@ -165,26 +190,41 @@ export default function PaymentSuccessPage() {
                         >
                             {isSuccess ? (
                                 <>
-                                    <Button onClick={handleGoToInvoices} className="w-full">
-                                        <ExternalLink className="mr-2 h-4 w-4" />
-                                        Bekijk Facturen
-                                    </Button>
-                                    <Button onClick={handleGoToPayments} variant="outline" className="w-full">
-                                        <ArrowLeft className="mr-2 h-4 w-4" />
-                                        Terug naar Betalingen
-                                    </Button>
+                                    {currentUser ? (
+                                        <>
+                                            <Button onClick={handleGoToInvoices} className="w-full">
+                                                <ExternalLink className="mr-2 h-4 w-4" />
+                                                Bekijk Facturen
+                                            </Button>
+                                            <Button onClick={handleGoToPayments} variant="outline" className="w-full">
+                                                <ArrowLeft className="mr-2 h-4 w-4" />
+                                                Terug naar Betalingen
+                                            </Button>
+                                        </>
+                                    ) : (
+                                        <Button onClick={handleGoToPayments} className="w-full">
+                                            <CheckCircle className="mr-2 h-4 w-4" />
+                                            Betaling Voltooid
+                                        </Button>
+                                    )}
                                 </>
                             ) : (
                                 <>
                                     <Button
-                                        onClick={() => router.push(`/dashboard/invoices`)}
+                                        onClick={() => {
+                                            if (currentUser) {
+                                                router.push(`/dashboard/invoices`);
+                                            } else {
+                                                toast.error('Neem contact op met de factuurverstrekker.');
+                                            }
+                                        }}
                                         className="w-full"
                                     >
                                         Opnieuw Betalen
                                     </Button>
                                     <Button onClick={handleGoToPayments} variant="outline" className="w-full">
                                         <ArrowLeft className="mr-2 h-4 w-4" />
-                                        Terug naar Betalingen
+                                        {currentUser ? 'Terug naar Betalingen' : 'Sluiten'}
                                     </Button>
                                 </>
                             )}

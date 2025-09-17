@@ -215,6 +215,8 @@ export default function PaymentsPage() {
       }, currentUser?.uid);
 
       toast.success(`Factuur succesvol verzonden naar ${client.email}!`);
+      // Play email sent confirmation sound
+      soundService.playEmailSent();
       setIsEmailDialogOpen(false);
       setSelectedInvoice(null);
       setCustomMessage('');

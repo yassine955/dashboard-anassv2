@@ -19,7 +19,9 @@ class SoundService {
       notification: '/sounds/notification-ping.mp3',
       warning: '/sounds/warning-beep.mp3',
       delete: '/sounds/delete-woosh.mp3',
-      button: '/sounds/button-click.mp3'
+      button: '/sounds/button-click.mp3',
+      email: '/sounds/email-sent.mp3',
+      login: '/sounds/login-success.mp3'
     };
 
     Object.entries(soundFiles).forEach(([key, path]) => {
@@ -109,6 +111,12 @@ class SoundService {
       case 'payment':
         await audioGenerator.generatePaymentSound();
         break;
+      case 'email':
+        await audioGenerator.generateEmailSentSound();
+        break;
+      case 'login':
+        await audioGenerator.generateLoginSound();
+        break;
     }
   }
 
@@ -142,6 +150,16 @@ class SoundService {
       // Add a slight delay for a second ping for extra celebration
       setTimeout(() => this.playSound('notification'), 200);
     }
+  }
+
+  // Method to play email sent confirmation
+  playEmailSent() {
+    this.playSound('email');
+  }
+
+  // Method to play login success sound
+  playLoginSuccess() {
+    this.playSound('login');
   }
 
   // Check if user has enabled sound in their preferences

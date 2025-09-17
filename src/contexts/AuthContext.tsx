@@ -10,6 +10,7 @@ import {
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, googleProvider, db } from '@/lib/firebase';
 import { User } from '@/types';
+import { soundService } from '@/lib/sound-service';
 
 interface AuthContextType {
   currentUser: FirebaseUser | null;
@@ -105,6 +106,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const signInWithGoogle = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
+      // Play welcome sound after successful login
+      soundService.playLoginSuccess();
     } catch (error) {
       console.error('Error signing in with Google:', error);
       throw error;

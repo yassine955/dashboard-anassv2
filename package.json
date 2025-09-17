@@ -47,7 +47,6 @@
     "react-hook-form": "^7.52.2",
     "react-pdf": "^9.1.0",
     "recharts": "^3.2.1",
-    "sharp": "^0.34.3",
     "sonner": "^1.5.0",
     "stripe": "^16.8.0",
     "tailwind-merge": "^2.5.2",
@@ -62,6 +61,8 @@
     "eslint": "^8",
     "eslint-config-next": "14.2.7",
     "postcss": "^8",
+    "puppeteer": "^24.22.0",
+    "sharp": "^0.34.4",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
   }

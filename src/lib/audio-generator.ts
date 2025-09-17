@@ -180,6 +180,91 @@ export class AudioGenerator {
       console.debug('Audio generation failed:', error);
     }
   }
+
+  async generateEmailSentSound(): Promise<void> {
+    // Professional email sent confirmation - ascending chime
+    try {
+      const audioContext = await this.ensureAudioContext();
+      if (!audioContext) return;
+
+      // Create a professional "sent" melody
+      const playMelody = async () => {
+        const notes = [
+          { freq: 523, duration: 0.12 }, // C5
+          { freq: 659, duration: 0.12 }, // E5
+          { freq: 784, duration: 0.18 }  // G5 (longer final note)
+        ];
+
+        for (let i = 0; i < notes.length; i++) {
+          const { freq, duration } = notes[i];
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+
+          oscillator.frequency.setValueAtTime(freq, audioContext.currentTime);
+          oscillator.type = 'sine';
+
+          // Professional envelope
+          gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+          gainNode.gain.linearRampToValueAtTime(0.15, audioContext.currentTime + 0.01);
+          gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+
+          oscillator.start(audioContext.currentTime);
+          oscillator.stop(audioContext.currentTime + duration);
+
+          // Wait for note to complete before next one
+          if (i < notes.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, duration * 1000 * 0.8));
+          }
+        }
+      };
+
+      await playMelody();
+    } catch (error) {
+      console.debug('Audio generation failed:', error);
+    }
+  }
+
+  async generateLoginSound(): Promise<void> {
+    // Welcoming login sound - warm rising tone
+    try {
+      const audioContext = await this.ensureAudioContext();
+      if (!audioContext) return;
+
+      // Create a warm welcome chord progression
+      const playWelcomeChord = async (frequencies: number[], duration: number) => {
+        const oscillators = frequencies.map(() => audioContext.createOscillator());
+        const gainNodes = frequencies.map(() => audioContext.createGain());
+
+        oscillators.forEach((osc, i) => {
+          osc.connect(gainNodes[i]);
+          gainNodes[i].connect(audioContext.destination);
+
+          osc.frequency.setValueAtTime(frequencies[i], audioContext.currentTime);
+          osc.type = 'sine';
+
+          // Soft, welcoming volume
+          gainNodes[i].gain.setValueAtTime(0, audioContext.currentTime);
+          gainNodes[i].gain.linearRampToValueAtTime(0.12 / frequencies.length, audioContext.currentTime + 0.02);
+          gainNodes[i].gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+
+          osc.start(audioContext.currentTime);
+          osc.stop(audioContext.currentTime + duration);
+        });
+
+        return new Promise<void>((resolve) => {
+          oscillators[0].onended = () => resolve();
+        });
+      };
+
+      // Warm F major chord (F-A-C) - professional and welcoming
+      await playWelcomeChord([349, 440, 523], 0.4);
+    } catch (error) {
+      console.debug('Audio generation failed:', error);
+    }
+  }
 }
 
 export const audioGenerator = new AudioGenerator();

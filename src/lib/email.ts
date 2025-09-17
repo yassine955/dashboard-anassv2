@@ -105,7 +105,10 @@ export async function generateInvoiceEmailHTML(
             <p>U kunt deze factuur eenvoudig online betalen:</p>
             <a href="${paymentLink}" class="button">Nu Betalen</a>
           </div>`
-      : ""
+      : `
+          <div style="text-align: center; margin: 30px 0; background: #f0f0f0; padding: 15px; border-radius: 5px;">
+            <p>Deze factuur is verzonden zonder betaallink. Neem contact met ons op voor betalingsinstructies.</p>
+          </div>`
     }
 
         <p>De factuur is als PDF bijgevoegd bij deze email. Voor vragen kunt u contact met ons opnemen.</p>

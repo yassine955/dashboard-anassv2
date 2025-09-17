@@ -5,9 +5,7 @@ import {
   User as FirebaseUser,
   onAuthStateChanged,
   signInWithPopup,
-  signOut,
-  setPersistence,
-  browserSessionPersistence
+  signOut
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, googleProvider, db } from '@/lib/firebase';
@@ -106,7 +104,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const signInWithGoogle = async () => {
     try {
-      await setPersistence(auth, browserSessionPersistence);
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error('Error signing in with Google:', error);

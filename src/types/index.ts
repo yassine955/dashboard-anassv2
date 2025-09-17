@@ -44,6 +44,22 @@ export interface User {
       creditorIban: string;
       isActive: boolean;
     };
+    paypal?: {
+      clientId: string;
+      clientSecret: string;
+      webhookId?: string;
+      isActive: boolean;
+    };
+    mollie?: {
+      apiKey: string;
+      profileId?: string;
+      isActive: boolean;
+    };
+    tikkie?: {
+      apiKey: string;
+      sandboxMode: boolean;
+      isActive: boolean;
+    };
   };
   stripeAccountId?: string; // Legacy field - keeping for backward compatibility
   createdAt: Timestamp;
@@ -82,6 +98,7 @@ export interface Product {
   deliveryTime?: string;
   fileFormats?: string;
   revisionRounds: number;
+  vatRate?: number;
   status: 'active' | 'inactive' | 'discontinued';
   usageCount: number;
   createdAt: Timestamp;

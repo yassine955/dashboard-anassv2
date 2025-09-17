@@ -7,14 +7,15 @@ import { invoiceService } from '@/lib/firebase-service';
 import { Invoice } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, AlertCircle, ArrowLeft, ExternalLink } from 'lucide-react';
+import { CheckCircle, AlertCircle, ArrowLeft, ExternalLink, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
+import { Badge } from '@/components/ui/badge';
 
 function PaymentSuccessContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
-    const { currentUser } = useAuth();
+    const { currentUser, userProfile } = useAuth();
     const [loading, setLoading] = useState(true);
     const [invoice, setInvoice] = useState<Invoice | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -66,20 +67,23 @@ function PaymentSuccessContent() {
         loadInvoice();
     }, [invoiceId, paymentStatus]);
 
+    // Check if the current user is the owner of this invoice (authorized to access dashboard)
+    const isInvoiceOwner = currentUser && invoice && invoice.userId === currentUser.uid;
+
     const handleGoToPayments = () => {
-        if (currentUser) {
+        if (isInvoiceOwner) {
             router.push('/dashboard/payments');
         } else {
-            // For clients without dashboard access, just show a message
+            // For clients or unauthorized users, just show a message
             toast.success('Bedankt voor uw betaling!');
         }
     };
 
     const handleGoToInvoices = () => {
-        if (currentUser) {
+        if (isInvoiceOwner) {
             router.push('/dashboard/invoices');
         } else {
-            // For clients without dashboard access, just show a message
+            // For clients or unauthorized users, just show a message
             toast.success('Bedankt voor uw betaling!');
         }
     };
@@ -197,7 +201,7 @@ function PaymentSuccessContent() {
                             >
                                 {isSuccess ? (
                                     <>
-                                        {currentUser ? (
+                                        {isInvoiceOwner ? (
                                             <>
                                                 <Button onClick={handleGoToInvoices} className="w-full">
                                                     <ExternalLink className="mr-2 h-4 w-4" />
@@ -208,18 +212,13 @@ function PaymentSuccessContent() {
                                                     Terug naar Betalingen
                                                 </Button>
                                             </>
-                                        ) : (
-                                            <Button onClick={() => window.close()} className="w-full">
-                                                <CheckCircle className="mr-2 h-4 w-4" />
-                                                Betaling Voltooid
-                                            </Button>
-                                        )}
+                                        ) : null}
                                     </>
                                 ) : (
                                     <>
                                         <Button
                                             onClick={() => {
-                                                if (currentUser) {
+                                                if (isInvoiceOwner) {
                                                     router.push(`/dashboard/invoices`);
                                                 } else {
                                                     toast.error('Neem contact op met de factuurverstrekker.');

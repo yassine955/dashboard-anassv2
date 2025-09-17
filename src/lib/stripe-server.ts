@@ -1,10 +1,17 @@
 import Stripe from "stripe"
 
 // Create a Stripe instance with user-specific keys
-function createStripeInstance(secretKey: string) {
-    return new Stripe(secretKey, {
+function createStripeInstance(secretKey: string, stripeAccountId?: string) {
+    const options: Stripe.StripeConfig = {
         apiVersion: "2024-06-20",
-    });
+    };
+    
+    // If we have a Stripe Connect account ID, set it in the config
+    if (stripeAccountId) {
+        options.stripeAccount = stripeAccountId;
+    }
+    
+    return new Stripe(secretKey, options);
 }
 
 // Fallback to global Stripe instance for backward compatibility
@@ -37,26 +44,32 @@ export async function createPaymentLink({
     stripeAccountId?: string;
 }) {
     // Use user-specific Stripe instance or fallback to global
-    const stripeInstance = stripeSecretKey ? createStripeInstance(stripeSecretKey) : stripe;
+    const stripeInstance = stripeSecretKey ? createStripeInstance(stripeSecretKey, stripeAccountId) : stripe;
 
     if (!stripeInstance) {
         throw new Error("No Stripe configuration available");
     }
 
-    const paymentLinkParams: any = {
+    // First create a product
+    const product = await stripeInstance.products.create({
+        name: description,
+        description: `Payment for ${description}`,
+    });
+
+    // Then create a price for the product
+    const price = await stripeInstance.prices.create({
+        product: product.id,
+        unit_amount: Math.round(amount * 100), // convert euros → cents
+        currency: currency,
+    });
+
+    const paymentLinkParams: Stripe.PaymentLinkCreateParams = {
         line_items: [
             {
-                price_data: {
-                    currency,
-                    product_data: {
-                        name: description,
-                        description: `Payment for ${description}`,
-                    },
-                    unit_amount: Math.round(amount * 100), // convert euros → cents
-                },
+                price: price.id,
                 quantity: 1,
             },
-        ] as any, // Type assertion for Stripe API compatibility
+        ],
         metadata: {
             ...metadata,
             invoiceId,
@@ -70,16 +83,10 @@ export async function createPaymentLink({
         },
         allow_promotion_codes: true,
         billing_address_collection: "auto",
-        payment_method_types: ["card", "ideal", "sepa_debit"],
     };
 
-    // Add Stripe Connect account if provided
-    const requestOptions: any = {};
-    if (stripeAccountId) {
-        requestOptions.stripeAccount = stripeAccountId;
-    }
-
-    return stripeInstance.paymentLinks.create(paymentLinkParams, requestOptions)
+    // For payment links, we create them directly without request options
+    return stripeInstance.paymentLinks.create(paymentLinkParams);
 }
 
 // Create a checkout session for more control
@@ -109,44 +116,39 @@ export async function createCheckoutSession({
     stripeAccountId?: string;
 }) {
     // Use user-specific Stripe instance or fallback to global
-    const stripeInstance = stripeSecretKey ? createStripeInstance(stripeSecretKey) : stripe;
+    const stripeInstance = stripeSecretKey ? createStripeInstance(stripeSecretKey, stripeAccountId) : stripe;
 
     if (!stripeInstance) {
         throw new Error("No Stripe configuration available");
     }
 
-    const sessionParams: any = {
-        payment_method_types: ["card", "ideal", "sepa_debit"],
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
+        mode: "payment",
         line_items: [
             {
                 price_data: {
-                    currency,
+                    currency: currency,
                     product_data: {
                         name: description,
                         description: `Payment for ${description}`,
                     },
-                    unit_amount: Math.round(amount * 100),
+                    unit_amount: Math.round(amount * 100), // convert euros → cents
                 },
                 quantity: 1,
             },
-        ] as any, // Type assertion for Stripe API compatibility
+        ],
         metadata: {
             ...metadata,
             invoiceId,
             clientId,
         },
-        mode: "payment",
         success_url: successUrl || `${process.env.NEXT_PUBLIC_APP_URL}/payment-success?payment=success&invoice=${invoiceId}`,
         cancel_url: cancelUrl || `${process.env.NEXT_PUBLIC_APP_URL}/payment-success?payment=cancelled&invoice=${invoiceId}`,
         billing_address_collection: "auto",
         allow_promotion_codes: true,
+        payment_method_types: ["card", "ideal", "sepa_debit"],
     };
 
-    // Add Stripe Connect account if provided
-    const requestOptions: any = {};
-    if (stripeAccountId) {
-        requestOptions.stripeAccount = stripeAccountId;
-    }
-
-    return stripeInstance.checkout.sessions.create(sessionParams, requestOptions)
+    // For checkout sessions, we create them directly without request options
+    return stripeInstance.checkout.sessions.create(sessionParams);
 }

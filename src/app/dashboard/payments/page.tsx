@@ -30,6 +30,9 @@ import { Search, Mail, ExternalLink, CreditCard, CheckCircle, Clock, AlertCircle
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { soundService } from '@/lib/sound-service';
+import { PayPalIcon } from '@/components/icons/PayPalIcon';
+import { MollieIcon } from '@/components/icons/MollieIcon';
+import { TikkieIcon } from '@/components/icons/TikkieIcon';
 
 export default function PaymentsPage() {
   const { currentUser } = useAuth();
@@ -43,6 +46,7 @@ export default function PaymentsPage() {
   const [isPaymentMethodDialogOpen, setIsPaymentMethodDialogOpen] = useState(false);
   const [emailSending, setEmailSending] = useState(false);
   const [customMessage, setCustomMessage] = useState('');
+  const [sendWithPaymentLink, setSendWithPaymentLink] = useState(true);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -128,8 +132,17 @@ export default function PaymentsPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        const formattedError = formatPaymentError(errorData.error || 'Failed to create payment link');
+        // Try to parse error response as JSON, but handle case where it might be HTML
+        let errorMessage = 'Failed to create payment link';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (jsonError) {
+          // If JSON parsing fails, it might be an HTML error page
+          console.error('Failed to parse error response as JSON:', jsonError);
+          errorMessage = `Server error (${response.status}): ${response.statusText}`;
+        }
+        const formattedError = formatPaymentError(errorMessage);
         throw new Error(formattedError);
       }
 
@@ -165,14 +178,17 @@ export default function PaymentsPage() {
         return;
       }
 
-      // Create payment link if it doesn't exist
-      let paymentLink = selectedInvoice.paymentLink;
-      if (!paymentLink) {
-        paymentLink = await createPaymentLink(selectedInvoice);
-        if (!paymentLink) return;
+      // Only create payment link if user chose to send with payment link
+      let paymentLink = null;
+      if (sendWithPaymentLink) {
+        paymentLink = selectedInvoice.paymentLink;
+        if (!paymentLink) {
+          paymentLink = await createPaymentLink(selectedInvoice);
+          if (!paymentLink) return;
+        }
       }
 
-      // Send email with invoice and payment link
+      // Send email with or without payment link based on user choice
       const response = await fetch('/api/send-email', {
         method: 'POST',
         headers: {
@@ -183,7 +199,7 @@ export default function PaymentsPage() {
           subject: `Factuur ${selectedInvoice.invoiceNumber}`,
           invoiceId: selectedInvoice.id,
           clientId: client.id,
-          paymentLink,
+          paymentLink, // Will be null if sendWithPaymentLink is false
           customMessage,
         }),
       });
@@ -202,6 +218,7 @@ export default function PaymentsPage() {
       setIsEmailDialogOpen(false);
       setSelectedInvoice(null);
       setCustomMessage('');
+      setSendWithPaymentLink(true); // Reset to default
     } catch (error) {
       console.error('Error sending email:', error);
 
@@ -242,6 +259,7 @@ export default function PaymentsPage() {
   const openEmailDialog = (invoice: Invoice) => {
     setSelectedInvoice(invoice);
     setCustomMessage('');
+    setSendWithPaymentLink(true); // Default to sending with payment link
     setIsEmailDialogOpen(true);
   };
 
@@ -250,17 +268,36 @@ export default function PaymentsPage() {
     setIsPaymentMethodDialogOpen(true);
   };
 
-  const createPaymentWithMethod = async (method: 'payment_link' | 'checkout_session' | 'ing') => {
+  const createPaymentWithMethod = async (method: 'payment_link' | 'checkout_session' | 'ing' | 'paypal' | 'mollie' | 'tikkie') => {
     if (!selectedInvoice) return;
 
-    if (method === 'ing') {
-      await createINGPayment(selectedInvoice);
-    } else {
-      const url = await createPaymentLink(selectedInvoice, method === 'checkout_session');
-      if (url) {
-        setIsPaymentMethodDialogOpen(false);
-        setSelectedInvoice(null);
-      }
+    switch (method) {
+      case 'ing':
+        await createINGPayment(selectedInvoice);
+        break;
+      case 'paypal':
+        await createPayPalPayment(selectedInvoice);
+        break;
+      case 'mollie':
+        await createMolliePayment(selectedInvoice);
+        break;
+      case 'tikkie':
+        await createTikkiePayment(selectedInvoice);
+        break;
+      case 'checkout_session':
+        const url1 = await createPaymentLink(selectedInvoice, true);
+        if (url1) {
+          setIsPaymentMethodDialogOpen(false);
+          setSelectedInvoice(null);
+        }
+        break;
+      default: // 'payment_link'
+        const url2 = await createPaymentLink(selectedInvoice, false);
+        if (url2) {
+          setIsPaymentMethodDialogOpen(false);
+          setSelectedInvoice(null);
+        }
+        break;
     }
   };
 
@@ -322,6 +359,192 @@ export default function PaymentsPage() {
       const formattedError = formatPaymentError(error);
       toast.error(formattedError);
       console.error('Error creating ING payment:', error);
+      return null;
+    }
+  };
+
+  const createPayPalPayment = async (invoice: Invoice) => {
+    try {
+      // Validate invoice and amount before creating PayPal payment
+      const invoiceValidation = validateInvoiceForPayment(invoice);
+      if (!invoiceValidation.isValid) {
+        invoiceValidation.errors.forEach(error => toast.error(error));
+        return null;
+      }
+
+      const amountValidation = validatePaymentAmount(invoice.totalAmount);
+      if (!amountValidation.isValid) {
+        amountValidation.errors.forEach(error => toast.error(error));
+        return null;
+      }
+
+      // Create PayPal payment request
+      const response = await fetch('/api/create-paypal-payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentUser?.uid}`,
+        },
+        body: JSON.stringify({
+          invoiceId: invoice.id,
+          amount: invoice.totalAmount,
+          description: `Factuur ${invoice.invoiceNumber}`,
+          clientId: invoice.clientId,
+          userId: currentUser?.uid,
+          metadata: {
+            invoiceId: invoice.id,
+            clientId: invoice.clientId,
+            invoiceNumber: invoice.invoiceNumber,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        const formattedError = formatPaymentError(errorData.error || 'Failed to create PayPal payment');
+        throw new Error(formattedError);
+      }
+
+      const { url, paymentId } = await response.json();
+
+      // Update invoice with PayPal payment link
+      await invoiceService.updateInvoice(invoice.id, {
+        paymentLink: url,
+        status: 'sent'
+      }, currentUser?.uid);
+
+      toast.success('PayPal betaling succesvol aangemaakt!');
+      setIsPaymentMethodDialogOpen(false);
+      setSelectedInvoice(null);
+      return url;
+    } catch (error) {
+      const formattedError = formatPaymentError(error);
+      toast.error(formattedError);
+      console.error('Error creating PayPal payment:', error);
+      return null;
+    }
+  };
+
+  const createMolliePayment = async (invoice: Invoice) => {
+    try {
+      // Validate invoice and amount before creating Mollie payment
+      const invoiceValidation = validateInvoiceForPayment(invoice);
+      if (!invoiceValidation.isValid) {
+        invoiceValidation.errors.forEach(error => toast.error(error));
+        return null;
+      }
+
+      const amountValidation = validatePaymentAmount(invoice.totalAmount);
+      if (!amountValidation.isValid) {
+        amountValidation.errors.forEach(error => toast.error(error));
+        return null;
+      }
+
+      // Create Mollie payment request
+      const response = await fetch('/api/create-mollie-payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentUser?.uid}`,
+        },
+        body: JSON.stringify({
+          invoiceId: invoice.id,
+          amount: invoice.totalAmount,
+          description: `Factuur ${invoice.invoiceNumber}`,
+          clientId: invoice.clientId,
+          userId: currentUser?.uid,
+          metadata: {
+            invoiceId: invoice.id,
+            clientId: invoice.clientId,
+            invoiceNumber: invoice.invoiceNumber,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        const formattedError = formatPaymentError(errorData.error || 'Failed to create Mollie payment');
+        throw new Error(formattedError);
+      }
+
+      const { url, paymentId } = await response.json();
+
+      // Update invoice with Mollie payment link
+      await invoiceService.updateInvoice(invoice.id, {
+        paymentLink: url,
+        status: 'sent'
+      }, currentUser?.uid);
+
+      toast.success('Mollie betaling succesvol aangemaakt!');
+      setIsPaymentMethodDialogOpen(false);
+      setSelectedInvoice(null);
+      return url;
+    } catch (error) {
+      const formattedError = formatPaymentError(error);
+      toast.error(formattedError);
+      console.error('Error creating Mollie payment:', error);
+      return null;
+    }
+  };
+
+  const createTikkiePayment = async (invoice: Invoice) => {
+    try {
+      // Validate invoice and amount before creating Tikkie payment
+      const invoiceValidation = validateInvoiceForPayment(invoice);
+      if (!invoiceValidation.isValid) {
+        invoiceValidation.errors.forEach(error => toast.error(error));
+        return null;
+      }
+
+      const amountValidation = validatePaymentAmount(invoice.totalAmount);
+      if (!amountValidation.isValid) {
+        amountValidation.errors.forEach(error => toast.error(error));
+        return null;
+      }
+
+      // Create Tikkie payment request
+      const response = await fetch('/api/create-tikkie-payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentUser?.uid}`,
+        },
+        body: JSON.stringify({
+          invoiceId: invoice.id,
+          amount: invoice.totalAmount,
+          description: `Factuur ${invoice.invoiceNumber}`,
+          clientId: invoice.clientId,
+          userId: currentUser?.uid,
+          metadata: {
+            invoiceId: invoice.id,
+            clientId: invoice.clientId,
+            invoiceNumber: invoice.invoiceNumber,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        const formattedError = formatPaymentError(errorData.error || 'Failed to create Tikkie payment');
+        throw new Error(formattedError);
+      }
+
+      const { url, paymentId } = await response.json();
+
+      // Update invoice with Tikkie payment link
+      await invoiceService.updateInvoice(invoice.id, {
+        paymentLink: url,
+        status: 'sent'
+      }, currentUser?.uid);
+
+      toast.success('Tikkie betaling succesvol aangemaakt!');
+      setIsPaymentMethodDialogOpen(false);
+      setSelectedInvoice(null);
+      return url;
+    } catch (error) {
+      const formattedError = formatPaymentError(error);
+      toast.error(formattedError);
+      console.error('Error creating Tikkie payment:', error);
       return null;
     }
   };
@@ -586,15 +809,46 @@ export default function PaymentsPage() {
       </motion.div>
 
       {/* Email Dialog */}
-      <Dialog open={isEmailDialogOpen} onOpenChange={setIsEmailDialogOpen}>
+      <Dialog open={isEmailDialogOpen} onOpenChange={(open) => {
+        setIsEmailDialogOpen(open);
+        if (!open) setSendWithPaymentLink(true); // Reset to default when closing
+      }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Factuur Verzenden</DialogTitle>
             <DialogDescription>
-              Verstuur factuur {selectedInvoice?.invoiceNumber} naar de klant met een betaallink.
+              {sendWithPaymentLink 
+                ? `Verstuur factuur ${selectedInvoice?.invoiceNumber} naar de klant met een betaallink.` 
+                : `Verstuur factuur ${selectedInvoice?.invoiceNumber} naar de klant zonder betaallink.`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {/* Payment Link Toggle */}
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
+              <div>
+                <p className="text-sm font-medium">Betaallink toevoegen</p>
+                <p className="text-xs text-gray-500">
+                  {sendWithPaymentLink 
+                    ? "De klant kan direct online betalen" 
+                    : "De klant ontvangt alleen de factuur"}
+                </p>
+              </div>
+              <div className="relative inline-block w-10 mr-2 align-middle select-none">
+                <input
+                  type="checkbox"
+                  name="toggle"
+                  id="toggle"
+                  className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                  checked={sendWithPaymentLink}
+                  onChange={() => setSendWithPaymentLink(!sendWithPaymentLink)}
+                />
+                <label
+                  htmlFor="toggle"
+                  className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
+                ></label>
+              </div>
+            </div>
+            
             <div>
               <label className="block text-sm font-medium mb-1">Persoonlijk bericht (optioneel)</label>
               <textarea
@@ -652,6 +906,48 @@ export default function PaymentsPage() {
                 </div>
                 <p className="text-sm text-gray-600 text-left">
                   Geavanceerde checkout met meer betaalmethoden (iDEAL, SEPA, etc.)
+                </p>
+              </Button>
+
+              <Button
+                variant="outline"
+                className="h-auto p-4 flex flex-col items-start space-y-2"
+                onClick={() => createPaymentWithMethod('paypal')}
+              >
+                <div className="flex items-center space-x-2">
+                  <PayPalIcon className="h-5 w-5 text-blue-600" />
+                  <span className="font-medium">PayPal</span>
+                </div>
+                <p className="text-sm text-gray-600 text-left">
+                  Betalingen via PayPal account
+                </p>
+              </Button>
+
+              <Button
+                variant="outline"
+                className="h-auto p-4 flex flex-col items-start space-y-2"
+                onClick={() => createPaymentWithMethod('mollie')}
+              >
+                <div className="flex items-center space-x-2">
+                  <MollieIcon className="h-5 w-5" />
+                  <span className="font-medium">Mollie</span>
+                </div>
+                <p className="text-sm text-gray-600 text-left">
+                  Betalingen via Mollie (iDEAL, Creditcard, Bancontact, etc.)
+                </p>
+              </Button>
+
+              <Button
+                variant="outline"
+                className="h-auto p-4 flex flex-col items-start space-y-2"
+                onClick={() => createPaymentWithMethod('tikkie')}
+              >
+                <div className="flex items-center space-x-2">
+                  <TikkieIcon className="h-5 w-5" />
+                  <span className="font-medium">Tikkie</span>
+                </div>
+                <p className="text-sm text-gray-600 text-left">
+                  Betalingen via Tikkie (ABN AMRO)
                 </p>
               </Button>
 

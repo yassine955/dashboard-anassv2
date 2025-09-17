@@ -17,6 +17,9 @@ import { Settings, User, Building, CreditCard, Mail, Save, Eye, EyeOff, CheckCir
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Avatar } from '@/components/ui/avatar';
+import { PayPalIcon } from '@/components/icons/PayPalIcon';
+import { MollieIcon } from '@/components/icons/MollieIcon';
+import { TikkieIcon } from '@/components/icons/TikkieIcon';
 
 export default function SettingsPage() {
   const { userProfile, updateUserProfile, currentUser } = useAuth();
@@ -24,6 +27,9 @@ export default function SettingsPage() {
   const [showStripeKeys, setShowStripeKeys] = useState(false);
   const [isStripeDialogOpen, setIsStripeDialogOpen] = useState(false);
   const [isINGDialogOpen, setIsINGDialogOpen] = useState(false);
+  const [isPayPalDialogOpen, setIsPayPalDialogOpen] = useState(false);
+  const [isMollieDialogOpen, setIsMollieDialogOpen] = useState(false);
+  const [isTikkieDialogOpen, setIsTikkieDialogOpen] = useState(false);
 
   // Business Info State
   const [businessInfo, setBusinessInfo] = useState({
@@ -61,6 +67,25 @@ export default function SettingsPage() {
     clientSecret: userProfile?.paymentSettings?.ing?.clientSecret || '',
     creditorIban: userProfile?.paymentSettings?.ing?.creditorIban || '',
     isActive: userProfile?.paymentSettings?.ing?.isActive || false
+  });
+
+  const [payPalSettings, setPayPalSettings] = useState({
+    clientId: userProfile?.paymentSettings?.paypal?.clientId || '',
+    clientSecret: userProfile?.paymentSettings?.paypal?.clientSecret || '',
+    webhookId: userProfile?.paymentSettings?.paypal?.webhookId || '',
+    isActive: userProfile?.paymentSettings?.paypal?.isActive || false
+  });
+
+  const [mollieSettings, setMollieSettings] = useState({
+    apiKey: userProfile?.paymentSettings?.mollie?.apiKey || '',
+    profileId: userProfile?.paymentSettings?.mollie?.profileId || '',
+    isActive: userProfile?.paymentSettings?.mollie?.isActive || false
+  });
+
+  const [tikkieSettings, setTikkieSettings] = useState({
+    apiKey: userProfile?.paymentSettings?.tikkie?.apiKey || '',
+    sandboxMode: userProfile?.paymentSettings?.tikkie?.sandboxMode || false,
+    isActive: userProfile?.paymentSettings?.tikkie?.isActive || false
   });
 
   const handleSaveBusinessInfo = async () => {
@@ -211,6 +236,66 @@ export default function SettingsPage() {
     } catch (error) {
       toast.error('Er is een fout opgetreden bij het opslaan van ING instellingen.');
       console.error('Error saving ING settings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSavePayPalSettings = async () => {
+    setLoading(true);
+    try {
+      await updateUserProfile({
+        paymentSettings: {
+          ...userProfile?.paymentSettings,
+          paypal: payPalSettings
+        }
+      });
+
+      toast.success('PayPal configuratie succesvol opgeslagen!');
+      setIsPayPalDialogOpen(false);
+    } catch (error) {
+      toast.error('Er is een fout opgetreden bij het opslaan van PayPal instellingen.');
+      console.error('Error saving PayPal settings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveMollieSettings = async () => {
+    setLoading(true);
+    try {
+      await updateUserProfile({
+        paymentSettings: {
+          ...userProfile?.paymentSettings,
+          mollie: mollieSettings
+        }
+      });
+
+      toast.success('Mollie configuratie succesvol opgeslagen!');
+      setIsMollieDialogOpen(false);
+    } catch (error) {
+      toast.error('Er is een fout opgetreden bij het opslaan van Mollie instellingen.');
+      console.error('Error saving Mollie settings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveTikkieSettings = async () => {
+    setLoading(true);
+    try {
+      await updateUserProfile({
+        paymentSettings: {
+          ...userProfile?.paymentSettings,
+          tikkie: tikkieSettings
+        }
+      });
+
+      toast.success('Tikkie configuratie succesvol opgeslagen!');
+      setIsTikkieDialogOpen(false);
+    } catch (error) {
+      toast.error('Er is een fout opgetreden bij het opslaan van Tikkie instellingen.');
+      console.error('Error saving Tikkie settings:', error);
     } finally {
       setLoading(false);
     }
@@ -561,6 +646,93 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               </div>
+              <div className="p-4 border rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div>
+                      <h4 className="font-medium flex items-center">
+                        PayPal
+                        {userProfile?.paymentSettings?.paypal?.isActive && (
+                          <CheckCircle className="ml-2 h-4 w-4 text-green-500" />
+                        )}
+                      </h4>
+                      <p className="text-sm text-gray-500">Online betalingen via PayPal</p>
+                      {userProfile?.paymentSettings?.paypal?.clientId && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          Client ID: {userProfile.paymentSettings.paypal.clientId.slice(0, 12)}***
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    variant={userProfile?.paymentSettings?.paypal?.isActive ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setIsPayPalDialogOpen(true)}
+                    className={userProfile?.paymentSettings?.paypal?.isActive ? "bg-paypal hover:bg-paypal/90" : ""}
+                    style={userProfile?.paymentSettings?.paypal?.isActive ? { backgroundColor: '#0070ba' } : {}}
+                  >
+                    {userProfile?.paymentSettings?.paypal?.isActive ? 'Bewerken' : 'Configureren'}
+                  </Button>
+                </div>
+              </div>
+              <div className="p-4 border rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div>
+                      <h4 className="font-medium flex items-center">
+                        Mollie
+                        {userProfile?.paymentSettings?.mollie?.isActive && (
+                          <CheckCircle className="ml-2 h-4 w-4 text-green-500" />
+                        )}
+                      </h4>
+                      <p className="text-sm text-gray-500">Online betalingen via Mollie</p>
+                      {userProfile?.paymentSettings?.mollie?.apiKey && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          API Key: {userProfile.paymentSettings.mollie.apiKey.slice(0, 8)}***
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    variant={userProfile?.paymentSettings?.mollie?.isActive ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setIsMollieDialogOpen(true)}
+                    className={userProfile?.paymentSettings?.mollie?.isActive ? "bg-mollie hover:bg-mollie/90" : ""}
+                    style={userProfile?.paymentSettings?.mollie?.isActive ? { backgroundColor: '#101f39' } : {}}
+                  >
+                    {userProfile?.paymentSettings?.mollie?.isActive ? 'Bewerken' : 'Configureren'}
+                  </Button>
+                </div>
+              </div>
+              <div className="p-4 border rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div>
+                      <h4 className="font-medium flex items-center">
+                        Tikkie
+                        {userProfile?.paymentSettings?.tikkie?.isActive && (
+                          <CheckCircle className="ml-2 h-4 w-4 text-green-500" />
+                        )}
+                      </h4>
+                      <p className="text-sm text-gray-500">Tikkie betalingen via ABN AMRO</p>
+                      {userProfile?.paymentSettings?.tikkie?.apiKey && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          API Key: {userProfile.paymentSettings.tikkie.apiKey.slice(0, 8)}***
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    variant={userProfile?.paymentSettings?.tikkie?.isActive ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setIsTikkieDialogOpen(true)}
+                    className={userProfile?.paymentSettings?.tikkie?.isActive ? "bg-tikkie hover:bg-tikkie/90" : ""}
+                    style={userProfile?.paymentSettings?.tikkie?.isActive ? { backgroundColor: '#007bc7' } : {}}
+                  >
+                    {userProfile?.paymentSettings?.tikkie?.isActive ? 'Bewerken' : 'Configureren'}
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </motion.div>
@@ -758,6 +930,223 @@ export default function SettingsPage() {
             <Button
               onClick={handleSaveINGSettings}
               disabled={loading || !ingSettings.clientId || !ingSettings.clientSecret || !ingSettings.creditorIban}
+            >
+              {loading ? 'Opslaan...' : 'Opslaan'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* PayPal Configuration Dialog */}
+      <Dialog open={isPayPalDialogOpen} onOpenChange={setIsPayPalDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>PayPal Configureren</DialogTitle>
+            <DialogDescription>
+              Configureer je PayPal API gegevens voor betalingen.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Client ID *</label>
+              <Input
+                placeholder="AYg..."
+                value={payPalSettings.clientId}
+                onChange={(e) => setPayPalSettings(prev => ({ ...prev, clientId: e.target.value }))}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Je PayPal REST API Client ID
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Client Secret *</label>
+              <Input
+                type="password"
+                placeholder="Your PayPal client secret"
+                value={payPalSettings.clientSecret}
+                onChange={(e) => setPayPalSettings(prev => ({ ...prev, clientSecret: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Webhook ID (optioneel)</label>
+              <Input
+                placeholder="4JH3921..."
+                value={payPalSettings.webhookId}
+                onChange={(e) => setPayPalSettings(prev => ({ ...prev, webhookId: e.target.value }))}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Voor automatische betalingsstatus updates
+              </p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="paypal-active"
+                checked={payPalSettings.isActive}
+                onChange={(e) => setPayPalSettings(prev => ({ ...prev, isActive: e.target.checked }))}
+                className="rounded border-gray-300"
+              />
+              <label htmlFor="paypal-active" className="text-sm">
+                PayPal integratie activeren
+              </label>
+            </div>
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start space-x-2">
+                <AlertTriangle className="h-4 w-4 text-blue-600 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-blue-800">Belangrijke informatie</p>
+                  <p className="text-xs text-blue-700 mt-1">
+                    Gebruik Live API Credentials voor productie. Zorg ervoor dat je webhook is geconfigureerd in je PayPal Developer Dashboard.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsPayPalDialogOpen(false)}>
+              Annuleren
+            </Button>
+            <Button
+              onClick={handleSavePayPalSettings}
+              disabled={loading || !payPalSettings.clientId || !payPalSettings.clientSecret}
+            >
+              {loading ? 'Opslaan...' : 'Opslaan'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mollie Configuration Dialog */}
+      <Dialog open={isMollieDialogOpen} onOpenChange={setIsMollieDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Mollie Configureren</DialogTitle>
+            <DialogDescription>
+              Configureer je Mollie API sleutel voor betalingen.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">API Sleutel *</label>
+              <Input
+                placeholder="test_... or live_..."
+                value={mollieSettings.apiKey}
+                onChange={(e) => setMollieSettings(prev => ({ ...prev, apiKey: e.target.value }))}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Je Mollie API sleutel (begin met test_ of live_)
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Profiel ID (optioneel)</label>
+              <Input
+                placeholder="pfl_..."
+                value={mollieSettings.profileId}
+                onChange={(e) => setMollieSettings(prev => ({ ...prev, profileId: e.target.value }))}
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="mollie-active"
+                checked={mollieSettings.isActive}
+                onChange={(e) => setMollieSettings(prev => ({ ...prev, isActive: e.target.checked }))}
+                className="rounded border-gray-300"
+              />
+              <label htmlFor="mollie-active" className="text-sm">
+                Mollie integratie activeren
+              </label>
+            </div>
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start space-x-2">
+                <AlertTriangle className="h-4 w-4 text-blue-600 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-blue-800">Belangrijke informatie</p>
+                  <p className="text-xs text-blue-700 mt-1">
+                    Configureer webhooks in je Mollie Dashboard voor automatische betalingsstatus updates.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsMollieDialogOpen(false)}>
+              Annuleren
+            </Button>
+            <Button
+              onClick={handleSaveMollieSettings}
+              disabled={loading || !mollieSettings.apiKey}
+            >
+              {loading ? 'Opslaan...' : 'Opslaan'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tikkie Configuration Dialog */}
+      <Dialog open={isTikkieDialogOpen} onOpenChange={setIsTikkieDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Tikkie Configureren</DialogTitle>
+            <DialogDescription>
+              Configureer je Tikkie API sleutel voor betalingen.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">API Sleutel *</label>
+              <Input
+                placeholder="Your Tikkie API key"
+                value={tikkieSettings.apiKey}
+                onChange={(e) => setTikkieSettings(prev => ({ ...prev, apiKey: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Sandbox Mode</label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="tikkie-sandbox"
+                  checked={tikkieSettings.sandboxMode}
+                  onChange={(e) => setTikkieSettings(prev => ({ ...prev, sandboxMode: e.target.checked }))}
+                  className="rounded border-gray-300"
+                />
+                <label htmlFor="tikkie-sandbox" className="text-sm">
+                  Sandbox modus inschakelen (voor testen)
+                </label>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="tikkie-active"
+                checked={tikkieSettings.isActive}
+                onChange={(e) => setTikkieSettings(prev => ({ ...prev, isActive: e.target.checked }))}
+                className="rounded border-gray-300"
+              />
+              <label htmlFor="tikkie-active" className="text-sm">
+                Tikkie integratie activeren
+              </label>
+            </div>
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start space-x-2">
+                <AlertTriangle className="h-4 w-4 text-blue-600 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-blue-800">Belangrijke informatie</p>
+                  <p className="text-xs text-blue-700 mt-1">
+                    Tikkie vereist een ABN AMRO zakelijke rekening. Gebruik sandbox mode voor testen.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsTikkieDialogOpen(false)}>
+              Annuleren
+            </Button>
+            <Button
+              onClick={handleSaveTikkieSettings}
+              disabled={loading || !tikkieSettings.apiKey}
             >
               {loading ? 'Opslaan...' : 'Opslaan'}
             </Button>

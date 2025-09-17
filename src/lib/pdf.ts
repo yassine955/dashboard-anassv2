@@ -3,72 +3,121 @@
 import jsPDF from "jspdf"
 import { Invoice, Client, User } from "@/types"
 
+// Function to convert image to base64
+function getBase64Image(imgUrl: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                reject(new Error('Could not get canvas context'));
+                return;
+            }
+            
+            // Set canvas dimensions (scale down the image)
+            const maxWidth = 150;
+            const maxHeight = 50;
+            let width = img.width;
+            let height = img.height;
+            
+            if (width > maxWidth) {
+                height = (height * maxWidth) / width;
+                width = maxWidth;
+            }
+            
+            if (height > maxHeight) {
+                width = (width * maxHeight) / height;
+                height = maxHeight;
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            const dataURL = canvas.toDataURL('image/png');
+            resolve(dataURL);
+        };
+        img.onerror = reject;
+        img.src = imgUrl;
+    });
+}
+
 /**
  * Generate an invoice PDF and return as Uint8Array
  */
-export function generateInvoicePDF(
+export async function generateInvoicePDF(
     invoice: Invoice,
     client: Client,
     userProfile: User
-): Uint8Array {
+): Promise<Uint8Array> {
     const doc = new jsPDF()
 
     // Set font
     doc.setFont("helvetica")
+
+    // Add logo
+    try {
+        const logoBase64 = await getBase64Image('/logo.png');
+        doc.addImage(logoBase64, 'PNG', 150, 15, 40, 15);
+    } catch (error) {
+        console.warn("Could not load logo for PDF:", error)
+    }
 
     // Header
     doc.setFontSize(24)
     doc.setTextColor(102, 126, 234) // Primary color
     doc.text("FACTUUR", 20, 30)
 
-    // Company Info (Right side)
+    // Company Info (Left side, below logo)
     doc.setFontSize(12)
     doc.setTextColor(0, 0, 0)
 
     const { companyName, address, kvkNumber, vatNumber } =
         userProfile.businessInfo
 
-    if (companyName) doc.text(companyName, 120, 30)
-    if (address?.street) doc.text(address.street, 120, 38)
+    if (companyName) doc.text(companyName, 20, 45)
+    if (address?.street) doc.text(address.street, 20, 53)
     if (address?.postalCode && address.city) {
-        doc.text(`${address.postalCode} ${address.city}`, 120, 46)
+        doc.text(`${address.postalCode} ${address.city}`, 20, 61)
     }
-    if (kvkNumber) doc.text(`KvK: ${kvkNumber}`, 120, 54)
-    if (vatNumber) doc.text(`BTW: ${vatNumber}`, 120, 62)
+    if (kvkNumber) doc.text(`KvK: ${kvkNumber}`, 20, 69)
+    if (vatNumber) doc.text(`BTW: ${vatNumber}`, 20, 77)
 
-    // Invoice details
+    // Invoice details (Right side)
     doc.setFontSize(10)
-    doc.text(`Factuurnummer: ${invoice.invoiceNumber}`, 20, 55)
+    doc.text(`Factuurnummer: ${invoice.invoiceNumber}`, 120, 45)
     doc.text(
         `Factuurdatum: ${new Date(
             invoice.invoiceDate.seconds * 1000
         ).toLocaleDateString("nl-NL")}`,
-        20,
-        62
+        120,
+        52
     )
     doc.text(
         `Vervaldatum: ${new Date(
             invoice.dueDate.seconds * 1000
         ).toLocaleDateString("nl-NL")}`,
-        20,
-        69
+        120,
+        59
     )
 
     // Client info
     doc.setFontSize(12)
     doc.setTextColor(102, 126, 234)
-    doc.text("Factuuradres:", 20, 85)
+    doc.text("Factuuradres:", 20, 95)
 
     doc.setTextColor(0, 0, 0)
-    doc.text(`${client.firstName} ${client.lastName}`, 20, 93)
-    if (client.companyName) doc.text(client.companyName, 20, 101)
-    if (client.address?.street) doc.text(client.address.street, 20, 109)
+    doc.text(`${client.firstName} ${client.lastName}`, 20, 103)
+    if (client.companyName) doc.text(client.companyName, 20, 111)
+    if (client.address?.street) doc.text(client.address.street, 20, 119)
     if (client.address?.postalCode && client.address.city) {
-        doc.text(`${client.address.postalCode} ${client.address.city}`, 20, 117)
+        doc.text(`${client.address.postalCode} ${client.address.city}`, 20, 127)
     }
 
     // Table header
-    const tableStartY = 140
+    const tableStartY = 150
     doc.setFontSize(10)
     doc.setTextColor(102, 126, 234)
     doc.text("Omschrijving", 20, tableStartY)
@@ -140,7 +189,7 @@ export function generateInvoicePDF(
     doc.setFontSize(8)
     doc.setTextColor(100, 100, 100)
     doc.text(
-        "Deze factuur is gegenereerd door Adobe Editor Dashboard",
+        "Deze factuur is gegenereerd door QuickInvoice",
         20,
         280
     )

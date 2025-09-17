@@ -5,26 +5,44 @@ export interface PaymentValidationResult {
     errors: string[];
 }
 
-export function validatePaymentAmount(amount: number): PaymentValidationResult {
+export function validatePaymentAmount(amount: number | string): PaymentValidationResult {
     const errors: string[] = [];
 
-    if (amount <= 0) {
+    // Convert string to number if needed
+    let numericAmount: number;
+    if (typeof amount === 'string') {
+        // Remove currency symbols and commas/periods used as thousand separators
+        const cleanedAmount = amount
+            .replace(/[€$£]/g, '') // Remove currency symbols
+            .replace(/\s/g, '') // Remove spaces
+            .replace(/\.(?=.*\.)/g, ''); // Remove thousand separators (keep last period as decimal)
+        
+        // Replace comma with period for decimal if needed
+        const normalizedAmount = cleanedAmount.replace(',', '.');
+        
+        numericAmount = parseFloat(normalizedAmount);
+        
+        // If parsing failed, add error
+        if (isNaN(numericAmount)) {
+            errors.push('Ongeldig bedrag formaat');
+            return { isValid: false, errors };
+        }
+    } else {
+        numericAmount = amount;
+    }
+
+    if (numericAmount <= 0) {
         errors.push('Bedrag moet groter zijn dan €0');
     }
 
-    if (amount > 999999.99) {
+    if (numericAmount > 999999.99) {
         errors.push('Bedrag mag niet groter zijn dan €999,999.99');
     }
 
     // Check for reasonable decimal places (max 2)
-    // Convert to string and check decimal places more reliably
-    const amountStr = amount.toString();
-    const decimalIndex = amountStr.indexOf('.');
-    if (decimalIndex !== -1) {
-        const decimalPlaces = amountStr.length - decimalIndex - 1;
-        if (decimalPlaces > 3) {
-            errors.push('Bedrag mag maximaal 2 decimalen hebben');
-        }
+    const decimalPlaces = (numericAmount.toString().split('.')[1] || '').length;
+    if (decimalPlaces > 2) {
+        errors.push('Bedrag mag maximaal 2 decimalen hebben');
     }
 
     return {
@@ -49,8 +67,14 @@ export function validateInvoiceForPayment(invoice: any): PaymentValidationResult
         errors.push('Deze factuur is geannuleerd');
     }
 
+    // Validate amount
     if (!invoice.totalAmount || invoice.totalAmount <= 0) {
         errors.push('Ongeldig factuurbedrag');
+    } else {
+        const amountValidation = validatePaymentAmount(invoice.totalAmount);
+        if (!amountValidation.isValid) {
+            errors.push(...amountValidation.errors);
+        }
     }
 
     // Check if invoice is not too old (more than 2 years)

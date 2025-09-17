@@ -37,8 +37,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate amount
-    if (typeof amount !== 'number' || amount <= 0) {
+    // Validate amount - ensure it's a number
+    const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+    
+    if (isNaN(numericAmount) || numericAmount <= 0) {
       return NextResponse.json(
         { error: "Invalid amount. Amount must be a positive number." },
         { status: 400 }
@@ -90,7 +92,7 @@ export async function POST(request: NextRequest) {
     if (useCheckoutSession) {
       // Use checkout session for more control
       result = await createCheckoutSession({
-        amount,
+        amount: numericAmount,
         description,
         metadata,
         invoiceId,
@@ -102,7 +104,7 @@ export async function POST(request: NextRequest) {
     } else {
       // Use payment link (simpler)
       result = await createPaymentLink({
-        amount,
+        amount: numericAmount,
         description,
         metadata,
         invoiceId,
@@ -113,7 +115,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    console.log(result)
+    console.log("Stripe result:", result);
 
     return NextResponse.json({
       url: result.url,
@@ -122,6 +124,14 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error("Error creating payment link:", error);
+    
+    // Log the full error for debugging
+    console.error("Full error details:", {
+      message: error.message,
+      stack: error.stack,
+      type: error.type,
+      raw: error
+    });
 
     // Handle specific Stripe errors
     if (error.type === 'StripeAuthenticationError') {
@@ -138,8 +148,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Handle generic errors
+    const errorMessage = error.message || "Failed to create payment link";
     return NextResponse.json(
-      { error: error.message || "Failed to create payment link" },
+      { error: errorMessage },
       { status: 500 }
     );
   }

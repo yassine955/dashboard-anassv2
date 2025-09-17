@@ -8,6 +8,7 @@ import { Invoice, Client, Product, InvoiceItem } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import {
   Table,
   TableBody,
@@ -43,8 +44,8 @@ export default function InvoicesPage() {
   // Invoice creation state
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
-  const [dueDate, setDueDate] = useState(
+  const [invoiceDate, setInvoiceDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [dueDate, setDueDate] = useState<string>(
     new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   );
   const [notes, setNotes] = useState('');
@@ -187,7 +188,7 @@ export default function InvoicesPage() {
         return;
       }
 
-      const pdfBuffer = generateInvoicePDF(invoice, client, userProfile);
+      const pdfBuffer = await generateInvoicePDF(invoice, client, userProfile);
       downloadPDF(pdfBuffer, `Factuur-${invoice.invoiceNumber}.pdf`);
       toast.success('PDF gedownload!');
     } catch (error) {
@@ -263,7 +264,7 @@ export default function InvoicesPage() {
               Nieuwe Factuur
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto sm:max-w-[90vw] md:max-w-4xl">
             <DialogHeader>
               <DialogTitle>Nieuwe Factuur Maken</DialogTitle>
               <DialogDescription>
@@ -293,42 +294,78 @@ export default function InvoicesPage() {
                   </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">Factuurdatum</label>
-                    <Input
-                      type="date"
-                      value={invoiceDate}
-                      onChange={(e) => setInvoiceDate(e.target.value)}
+                    <DatePicker
+                      date={invoiceDate}
+                      onDateChange={(date) => {
+                        if (date) {
+                          // Format the date as YYYY-MM-DD without timezone issues
+                          const formattedDate = date.getFullYear() + '-' + 
+                            String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+                            String(date.getDate()).padStart(2, '0')
+                          setInvoiceDate(formattedDate)
+                        }
+                      }}
+                      className="w-full"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Vervaldatum</label>
-                    <Input
-                      type="date"
-                      value={dueDate}
-                      onChange={(e) => setDueDate(e.target.value)}
+                    <DatePicker
+                      date={dueDate}
+                      onDateChange={(date) => {
+                        if (date) {
+                          // Format the date as YYYY-MM-DD without timezone issues
+                          const formattedDate = date.getFullYear() + '-' + 
+                            String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+                            String(date.getDate()).padStart(2, '0')
+                          setDueDate(formattedDate)
+                        }
+                      }}
+                      className="w-full"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Producten toevoegen</label>
-                  <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto">
-                    {products.filter(p => p.status === 'active').map(product => (
-                      <Button
-                        key={product.id}
-                        variant="outline"
-                        size="sm"
-                        className="justify-start h-auto p-2"
-                        onClick={() => addProductToInvoice(product)}
-                      >
-                        <div className="text-left">
-                          <div className="font-medium">{product.name}</div>
-                          <div className="text-xs text-gray-500">€{product.basePrice.toFixed(2)}</div>
-                        </div>
-                      </Button>
-                    ))}
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-sm font-medium">Producten toevoegen</label>
+                  </div>
+                  <div className="border rounded-md bg-gray-50 max-h-40 overflow-y-auto">
+                    {products.filter(p => p.status === 'active').length > 0 ? (
+                      <div className="grid grid-cols-1 gap-2 p-2">
+                        {products.filter(p => p.status === 'active').map(product => (
+                          <Button
+                            key={product.id}
+                            variant="outline"
+                            size="sm"
+                            className="justify-between h-auto p-3 text-left hover:bg-accent transition-colors w-full"
+                            onClick={() => addProductToInvoice(product)}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm truncate">{product.name}</div>
+                              {product.description && (
+                                <div className="text-xs text-muted-foreground mt-1 truncate">
+                                  {product.description}
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-right ml-2">
+                              <div className="font-semibold text-sm">€{product.basePrice.toFixed(2)}</div>
+                              {product.vatRate !== undefined && product.vatRate > 0 && (
+                                <div className="text-xs text-muted-foreground">BTW {product.vatRate}%</div>
+                              )}
+                            </div>
+                          </Button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-4 text-center text-sm text-muted-foreground">
+                        Geen actieve producten beschikbaar
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -340,55 +377,66 @@ export default function InvoicesPage() {
                       Regel toevoegen
                     </Button>
                   </div>
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                  <div className="space-y-3 max-h-60 overflow-y-auto">
                     {invoiceItems.map((item, index) => (
-                      <div key={item.id} className="grid grid-cols-12 gap-2 items-center p-2 border rounded">
-                        <div className="col-span-4">
-                          <Input
-                            placeholder="Beschrijving"
-                            value={item.description}
-                            onChange={(e) => updateInvoiceItem(index, 'description', e.target.value)}
-                          />
-                        </div>
-                        <div className="col-span-2">
-                          <Input
-                            type="number"
-                            placeholder="Aantal"
-                            value={item.quantity}
-                            onChange={(e) => updateInvoiceItem(index, 'quantity', parseInt(e.target.value) || 0)}
-                          />
-                        </div>
-                        <div className="col-span-2">
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="Prijs"
-                            value={item.unitPrice}
-                            onChange={(e) => updateInvoiceItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
-                          />
-                        </div>
-                        <div className="col-span-2">
-                          <select
-                            className="w-full h-9 px-2 py-1 border border-input rounded text-sm"
-                            value={item.vatRate}
-                            onChange={(e) => updateInvoiceItem(index, 'vatRate', parseFloat(e.target.value))}
-                          >
-                            <option value={0}>0%</option>
-                            <option value={9}>9%</option>
-                            <option value={21}>21%</option>
-                          </select>
-                        </div>
-                        <div className="col-span-1">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => removeInvoiceItem(index)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                        <div className="col-span-1 text-right text-sm font-medium">
-                          €{item.lineTotal.toFixed(2)}
+                      <div key={item.id} className="p-3 border rounded-lg bg-white">
+                        <div className="grid grid-cols-1 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Beschrijving</label>
+                            <Input
+                              placeholder="Beschrijving"
+                              value={item.description}
+                              onChange={(e) => updateInvoiceItem(index, 'description', e.target.value)}
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Aantal</label>
+                              <Input
+                                type="number"
+                                placeholder="Aantal"
+                                value={item.quantity}
+                                onChange={(e) => updateInvoiceItem(index, 'quantity', parseInt(e.target.value) || 0)}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Prijs</label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="Prijs"
+                                value={item.unitPrice}
+                                onChange={(e) => updateInvoiceItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">BTW</label>
+                              <select
+                                className="w-full h-9 px-2 py-1 border border-input rounded text-sm"
+                                value={item.vatRate}
+                                onChange={(e) => updateInvoiceItem(index, 'vatRate', parseFloat(e.target.value))}
+                              >
+                                <option value={0}>0%</option>
+                                <option value={9}>9%</option>
+                                <option value={21}>21%</option>
+                              </select>
+                            </div>
+                            <div className="flex items-end justify-between">
+                              <div className="text-sm font-medium">
+                                <div className="text-xs text-gray-500">Totaal</div>
+                                €{item.lineTotal.toFixed(2)}
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => removeInvoiceItem(index)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ))}

@@ -29,6 +29,7 @@ import {
 import { Search, Mail, ExternalLink, CreditCard, CheckCircle, Clock, AlertCircle, Euro, Zap, Smartphone, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
+import { soundService } from '@/lib/sound-service';
 
 export default function PaymentsPage() {
   const { currentUser } = useAuth();
@@ -56,6 +57,7 @@ export default function PaymentsPage() {
         if (invoice.status === 'paid') {
           const wasUnpaid = invoices.find(i => i.id === invoice.id && i.status !== 'paid');
           if (wasUnpaid) {
+            soundService.playPaymentReceived();
             toast.success(`Factuur ${invoice.invoiceNumber} is betaald! 🎉`);
           }
         }
@@ -216,8 +218,10 @@ export default function PaymentsPage() {
       await invoiceService.updateInvoice(invoice.id, {
         status: 'paid'
       }, currentUser?.uid);
+      soundService.playPaymentReceived();
       toast.success('Factuur gemarkeerd als betaald!');
     } catch (error) {
+      soundService.playWarning();
       toast.error('Er is een fout opgetreden bij het bijwerken van de factuur.');
       console.error('Error updating invoice:', error);
     }

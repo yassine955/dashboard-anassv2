@@ -35,6 +35,7 @@ import {
   Eye
 } from 'lucide-react';
 import { MonthlyFinancials } from '@/types';
+import { Badge } from '@/components/ui/badge';
 
 export default function AnalyticsPage() {
   const { currentUser } = useAuth();
@@ -230,9 +231,8 @@ export default function AnalyticsPage() {
                   {formatCurrency(financialSummary.currentMonth?.omzet || 0)}
                 </div>
                 {financialSummary.trends.omzetGrowth !== 0 && (
-                  <div className={`flex items-center text-sm ${
-                    financialSummary.trends.omzetGrowth > 0 ? 'text-green-600' : 'text-red-600'
-                  }`}>
+                  <div className={`flex items-center text-sm ${financialSummary.trends.omzetGrowth > 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
                     {financialSummary.trends.omzetGrowth > 0 ?
                       <TrendingUp className="h-4 w-4 mr-1" /> :
                       <TrendingDown className="h-4 w-4 mr-1" />
@@ -254,9 +254,8 @@ export default function AnalyticsPage() {
                   {formatCurrency(financialSummary.currentMonth?.kosten || 0)}
                 </div>
                 {financialSummary.trends.kostenGrowth !== 0 && (
-                  <div className={`flex items-center text-sm ${
-                    financialSummary.trends.kostenGrowth > 0 ? 'text-red-600' : 'text-green-600'
-                  }`}>
+                  <div className={`flex items-center text-sm ${financialSummary.trends.kostenGrowth > 0 ? 'text-red-600' : 'text-green-600'
+                    }`}>
                     {financialSummary.trends.kostenGrowth > 0 ?
                       <TrendingUp className="h-4 w-4 mr-1" /> :
                       <TrendingDown className="h-4 w-4 mr-1" />
@@ -274,15 +273,13 @@ export default function AnalyticsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold ${
-                  (financialSummary.currentMonth?.winst || 0) >= 0 ? 'text-green-600' : 'text-red-600'
-                }`}>
+                <div className={`text-2xl font-bold ${(financialSummary.currentMonth?.winst || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
                   {formatCurrency(financialSummary.currentMonth?.winst || 0)}
                 </div>
                 {financialSummary.trends.winstGrowth !== 0 && (
-                  <div className={`flex items-center text-sm ${
-                    financialSummary.trends.winstGrowth > 0 ? 'text-green-600' : 'text-red-600'
-                  }`}>
+                  <div className={`flex items-center text-sm ${financialSummary.trends.winstGrowth > 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
                     {financialSummary.trends.winstGrowth > 0 ?
                       <TrendingUp className="h-4 w-4 mr-1" /> :
                       <TrendingDown className="h-4 w-4 mr-1" />
@@ -300,9 +297,8 @@ export default function AnalyticsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold ${
-                  financialSummary.yearToDate.totalWinst >= 0 ? 'text-green-600' : 'text-red-600'
-                }`}>
+                <div className={`text-2xl font-bold ${financialSummary.yearToDate.totalWinst >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
                   {formatCurrency(financialSummary.yearToDate.totalWinst)}
                 </div>
                 <div className="text-sm text-gray-600">
@@ -442,9 +438,8 @@ export default function AnalyticsPage() {
                 <div className="border-t pt-4">
                   <div className="flex justify-between items-center">
                     <span className="text-gray-900 font-medium">Totale Winst:</span>
-                    <span className={`font-bold text-2xl ${
-                      totalYearData.totalWinst >= 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
+                    <span className={`font-bold text-2xl ${totalYearData.totalWinst >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
                       {formatCurrency(totalYearData.totalWinst)}
                     </span>
                   </div>
@@ -554,9 +549,8 @@ export default function AnalyticsPage() {
                 {showDetailedView && (
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {yearlyComparison.map((yearData) => (
-                      <Card key={yearData.year} className={`${
-                        yearData.year === new Date().getFullYear() ? 'ring-2 ring-blue-500' : ''
-                      }`}>
+                      <Card key={yearData.year} className={`${yearData.year === new Date().getFullYear() ? 'ring-2 ring-blue-500' : ''
+                        }`}>
                         <CardHeader className="pb-2">
                           <CardTitle className="text-lg flex justify-between items-center">
                             <span>{yearData.year}</span>
@@ -581,9 +575,8 @@ export default function AnalyticsPage() {
                             </div>
                             <div className="flex justify-between border-t pt-2">
                               <span className="text-sm font-medium">Winst:</span>
-                              <span className={`font-bold ${
-                                yearData.totalWinst >= 0 ? 'text-green-600' : 'text-red-600'
-                              }`}>
+                              <span className={`font-bold ${yearData.totalWinst >= 0 ? 'text-green-600' : 'text-red-600'
+                                }`}>
                                 {formatCurrency(yearData.totalWinst)}
                               </span>
                             </div>
@@ -625,10 +618,9 @@ export default function AnalyticsPage() {
                   </div>
                   <div className="text-center">
                     <p className="text-sm text-gray-600">Gemiddelde Jaarwinst</p>
-                    <p className={`text-lg font-bold ${
-                      (yearlyComparison.reduce((sum, year) => sum + year.totalWinst, 0) / yearlyComparison.length) >= 0 ?
-                      'text-green-600' : 'text-red-600'
-                    }`}>
+                    <p className={`text-lg font-bold ${(yearlyComparison.reduce((sum, year) => sum + year.totalWinst, 0) / yearlyComparison.length) >= 0 ?
+                        'text-green-600' : 'text-red-600'
+                      }`}>
                       {formatCurrency(yearlyComparison.reduce((sum, year) => sum + year.totalWinst, 0) / yearlyComparison.length)}
                     </p>
                   </div>
@@ -673,9 +665,8 @@ export default function AnalyticsPage() {
                   <p className="text-sm text-gray-600">Kosten YTD</p>
                 </div>
                 <div className="text-center p-4 bg-white rounded-lg shadow-sm">
-                  <p className={`text-2xl font-bold ${
-                    (financialSummary.yearToDate?.totalWinst || 0) >= 0 ? 'text-green-600' : 'text-red-600'
-                  }`}>
+                  <p className={`text-2xl font-bold ${(financialSummary.yearToDate?.totalWinst || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
                     {formatCurrency(financialSummary.yearToDate?.totalWinst || 0)}
                   </p>
                   <p className="text-sm text-gray-600">Winst YTD</p>

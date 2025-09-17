@@ -27,8 +27,12 @@ import {
   FolderOpen,
   Settings,
   Send,
-  CreditCard
+  CreditCard,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
+import { soundService } from '@/lib/sound-service';
+import { toast } from 'sonner';
 import { BTWQuarter, BusinessExpense } from '@/types';
 import { Timestamp } from 'firebase/firestore';
 
@@ -50,6 +54,9 @@ export default function BTWPage() {
   const [availableQuarters, setAvailableQuarters] = useState<Array<{year: number, quarter: number, name: string, dueDate: Date}>>([]);
   const [selectedQuarterToOpen, setSelectedQuarterToOpen] = useState<{year: number, quarter: number} | null>(null);
   const [activeQuarter, setActiveQuarter] = useState<BTWQuarter | null>(null);
+  const [deletingQuarter, setDeletingQuarter] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [quarterToDelete, setQuarterToDelete] = useState<BTWQuarter | null>(null);
 
   // Form state for new expense
   const [newExpense, setNewExpense] = useState({
@@ -195,6 +202,15 @@ export default function BTWPage() {
     try {
       const updatedQuarter = await btwService.updateQuarterStatus(currentUser.uid, quarterId, newStatus);
 
+      // Play sound based on status
+      if (newStatus === 'filed') {
+        soundService.playNotification();
+        toast.success('Kwartaal succesvol ingediend bij Belastingdienst!');
+      } else if (newStatus === 'paid') {
+        soundService.playPaymentReceived();
+        toast.success('Betaling geregistreerd! 🎉');
+      }
+
       // Update the current quarter if it's the one being updated
       if (currentQuarter?.id === quarterId) {
         setCurrentQuarter(updatedQuarter);
@@ -205,7 +221,41 @@ export default function BTWPage() {
       console.log('Quarter status updated:', updatedQuarter);
     } catch (error) {
       console.error('Error updating quarter status:', error);
+      toast.error('Fout bij updaten kwartaal status');
     }
+  };
+
+  const handleDeleteQuarter = async () => {
+    if (!currentUser || !quarterToDelete) return;
+
+    try {
+      setDeletingQuarter(quarterToDelete.id);
+      await btwService.deleteQuarter(currentUser.uid, quarterToDelete.id);
+
+      soundService.playDelete();
+      toast.success(`Kwartaal Q${quarterToDelete.quarter} ${quarterToDelete.year} verwijderd`);
+
+      // If we deleted the current quarter, reset it
+      if (currentQuarter?.id === quarterToDelete.id) {
+        setCurrentQuarter(null);
+        setActiveQuarter(null);
+      }
+
+      await loadBTWData();
+      setShowDeleteConfirm(false);
+      setQuarterToDelete(null);
+    } catch (error) {
+      console.error('Error deleting quarter:', error);
+      soundService.playWarning();
+      toast.error(error instanceof Error ? error.message : 'Fout bij verwijderen kwartaal');
+    } finally {
+      setDeletingQuarter(null);
+    }
+  };
+
+  const confirmDeleteQuarter = (quarter: BTWQuarter) => {
+    setQuarterToDelete(quarter);
+    setShowDeleteConfirm(true);
   };
 
   const handleAddExpense = async (e: React.FormEvent) => {
@@ -402,24 +452,44 @@ export default function BTWPage() {
               {currentQuarter && (
                 <div className="flex gap-2">
                   {currentQuarter.status === 'draft' && (
-                    <Button
-                      onClick={() => handleUpdateQuarterStatus(currentQuarter.id, 'filed')}
-                      disabled={closing || calculating || fullRecalculating}
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    <motion.div
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
                     >
-                      <Send className="h-4 w-4 mr-2" />
-                      Indienen bij Belastingdienst
-                    </Button>
+                      <Button
+                        onClick={() => handleUpdateQuarterStatus(currentQuarter.id, 'filed')}
+                        disabled={closing || calculating || fullRecalculating}
+                        className="bg-blue-600 hover:bg-blue-700 text-white transition-all duration-200 shadow-sm hover:shadow-md"
+                      >
+                        <motion.div
+                          animate={calculating ? { rotate: 360 } : { rotate: 0 }}
+                          transition={{ duration: 1, repeat: calculating ? Infinity : 0, ease: "linear" }}
+                        >
+                          <Send className="h-4 w-4 mr-2" />
+                        </motion.div>
+                        Indienen bij Belastingdienst
+                      </Button>
+                    </motion.div>
                   )}
                   {currentQuarter.status === 'filed' && (
-                    <Button
-                      onClick={() => handleUpdateQuarterStatus(currentQuarter.id, 'paid')}
-                      disabled={closing || calculating || fullRecalculating}
-                      className="bg-green-600 hover:bg-green-700 text-white"
+                    <motion.div
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
                     >
-                      <CreditCard className="h-4 w-4 mr-2" />
-                      Markeer als Betaald
-                    </Button>
+                      <Button
+                        onClick={() => handleUpdateQuarterStatus(currentQuarter.id, 'paid')}
+                        disabled={closing || calculating || fullRecalculating}
+                        className="bg-green-600 hover:bg-green-700 text-white transition-all duration-200 shadow-sm hover:shadow-md"
+                      >
+                        <motion.div
+                          whileHover={{ scale: 1.1 }}
+                          transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                        >
+                          <CreditCard className="h-4 w-4 mr-2" />
+                        </motion.div>
+                        Markeer als Betaald
+                      </Button>
+                    </motion.div>
                   )}
                   <Button
                     variant="outline"
@@ -639,64 +709,89 @@ export default function BTWPage() {
                 {allQuarters.map((quarter) => (
                   <Card
                     key={quarter.id}
-                    className={`cursor-pointer transition-all hover:shadow-md ${
+                    className={`relative group transition-all hover:shadow-md ${
                       currentQuarter?.id === quarter.id ? 'ring-2 ring-blue-500 bg-blue-50' : ''
                     }`}
-                    onClick={() => {
-                      setCurrentQuarter(quarter);
-                      setActiveQuarter(quarter);
-                    }}
                   >
-                    <CardHeader className="pb-2">
-                      <div className="flex justify-between items-center">
-                        <CardTitle className="text-lg">
-                          Q{quarter.quarter} {quarter.year}
-                        </CardTitle>
-                        <Badge className={getStatusColor(quarter.status)}>
-                          {getStatusIcon(quarter.status)}
-                          <span className="ml-1">
-                            {quarter.status === 'draft' ? 'Concept' :
-                             quarter.status === 'filed' ? 'Ingediend' :
-                             quarter.status === 'paid' ? 'Betaald' : 'Concept'}
-                          </span>
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Omzet:</span>
-                          <span className="font-medium text-green-600">
-                            €{quarter.totalRevenue.toFixed(2)}
-                          </span>
+                    <div
+                      className="cursor-pointer"
+                      onClick={() => {
+                        setCurrentQuarter(quarter);
+                        setActiveQuarter(quarter);
+                      }}
+                    >
+                      <CardHeader className="pb-2">
+                        <div className="flex justify-between items-center">
+                          <CardTitle className="text-lg">
+                            Q{quarter.quarter} {quarter.year}
+                          </CardTitle>
+                          <div className="flex items-center gap-2">
+                            <Badge className={getStatusColor(quarter.status)}>
+                              {getStatusIcon(quarter.status)}
+                              <span className="ml-1">
+                                {quarter.status === 'draft' ? 'Concept' :
+                                 quarter.status === 'filed' ? 'Ingediend' :
+                                 quarter.status === 'paid' ? 'Betaald' : 'Concept'}
+                              </span>
+                            </Badge>
+                            {/* Delete Button - Only for draft status */}
+                            {quarter.status === 'draft' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  confirmDeleteQuarter(quarter);
+                                }}
+                                disabled={deletingQuarter === quarter.id}
+                              >
+                                {deletingQuarter === quarter.id ? (
+                                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-500"></div>
+                                ) : (
+                                  <Trash2 className="h-3 w-3" />
+                                )}
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">BTW te betalen:</span>
-                          <span className={`font-medium ${
-                            quarter.totalVATOwed >= 0 ? 'text-red-600' : 'text-green-600'
-                          }`}>
-                            €{quarter.totalVATOwed.toFixed(2)}
-                          </span>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Omzet:</span>
+                            <span className="font-medium text-green-600">
+                              €{quarter.totalRevenue.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">BTW te betalen:</span>
+                            <span className={`font-medium ${
+                              quarter.totalVATOwed >= 0 ? 'text-red-600' : 'text-green-600'
+                            }`}>
+                              €{quarter.totalVATOwed.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-xs text-gray-500">
+                            <span>Deadline:</span>
+                            <span>
+                              {quarter.dueDate?.toDate ?
+                                quarter.dueDate.toDate().toLocaleDateString('nl-NL') :
+                                'Niet beschikbaar'
+                              }
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex justify-between text-xs text-gray-500">
-                          <span>Deadline:</span>
-                          <span>
-                            {quarter.dueDate?.toDate ?
-                              quarter.dueDate.toDate().toLocaleDateString('nl-NL') :
-                              'Niet beschikbaar'
-                            }
-                          </span>
-                        </div>
-                      </div>
-                      {currentQuarter?.id === quarter.id && (
-                        <div className="mt-3 text-center">
-                          <Badge className="bg-blue-100 text-blue-800">
-                            <Eye className="h-3 w-3 mr-1" />
-                            Nu Actief
-                          </Badge>
-                        </div>
-                      )}
-                    </CardContent>
+                        {currentQuarter?.id === quarter.id && (
+                          <div className="mt-3 text-center">
+                            <Badge className="bg-blue-100 text-blue-800">
+                              <Eye className="h-3 w-3 mr-1" />
+                              Nu Actief
+                            </Badge>
+                          </div>
+                        )}
+                      </CardContent>
+                    </div>
                   </Card>
                 ))}
               </div>
@@ -869,6 +964,73 @@ export default function BTWPage() {
             <Button variant="outline" onClick={() => setShowQuarterDetails(false)}>
               <X className="h-4 w-4 mr-2" />
               Sluiten
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              Kwartaal Verwijderen
+            </DialogTitle>
+          </DialogHeader>
+          {quarterToDelete && (
+            <div className="space-y-4">
+              <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                <p className="text-sm text-red-800">
+                  <strong>Waarschuwing:</strong> Je staat op het punt om kwartaal{' '}
+                  <strong>Q{quarterToDelete.quarter} {quarterToDelete.year}</strong> permanent te verwijderen.
+                </p>
+              </div>
+
+              <div className="space-y-2 text-sm text-gray-700">
+                <p><strong>Dit kwartaal bevat:</strong></p>
+                <ul className="list-disc list-inside space-y-1 ml-4">
+                  <li>Omzet: €{quarterToDelete.totalRevenue.toFixed(2)}</li>
+                  <li>BTW bedrag: €{quarterToDelete.totalVATCharged.toFixed(2)}</li>
+                  <li>Uitgaven: {quarterToDelete.expenses?.length || 0} items</li>
+                </ul>
+              </div>
+
+              <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                <p className="text-xs text-yellow-800">
+                  <strong>Let op:</strong> Deze actie kan niet ongedaan gemaakt worden. Alleen concept kwartalen kunnen worden verwijderd.
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteConfirm(false);
+                setQuarterToDelete(null);
+              }}
+              disabled={!!deletingQuarter}
+            >
+              Annuleren
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteQuarter}
+              disabled={!!deletingQuarter}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deletingQuarter ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Verwijderen...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Permanent Verwijderen
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

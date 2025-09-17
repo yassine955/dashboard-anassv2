@@ -1,0 +1,14 @@
+Audio Placeholder Files Needed:
+
+1. success-ping.mp3 - Pleasant ascending chime (800Hz, 200ms)
+2. notification-ping.mp3 - Gentle notification (400Hz, 100ms)
+3. warning-beep.mp3 - Subtle warning tone (300Hz, 150ms, square wave)
+4. delete-woosh.mp3 - Soft whoosh for deletions (200-50Hz sweep, 300ms)
+5. button-click.mp3 - Subtle click sound (1000Hz, 50ms)
+
+For now, the sound service will gracefully handle missing files.
+Use online tools like:
+- freesound.org
+- zapsplat.com
+- Web Audio API generators
+- Audacity for custom tones

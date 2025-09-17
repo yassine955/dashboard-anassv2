@@ -4,10 +4,10 @@ import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users,
   Package,
@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { soundService } from '@/lib/sound-service';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -50,7 +51,7 @@ const navigation: NavigationItem[] = [
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { currentUser, userProfile, logout } = useAuth();
+  const { currentUser, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -96,29 +97,101 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
           {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-2">
-            {navigation.map((item) => {
+            {navigation.map((item, index) => {
               const isActive = pathname === item.href;
               return (
-                <Button
+                <motion.div
                   key={item.name}
-                  variant={isActive ? "default" : "ghost"}
-                  className={cn(
-                    "w-full justify-start h-12 relative",
-                    isActive ? "bg-primary text-primary-foreground" : "text-gray-700 hover:bg-gray-100"
-                  )}
-                  onClick={() => {
-                    router.push(item.href);
-                    setSidebarOpen(false);
-                  }}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05, duration: 0.3 }}
                 >
-                  <item.icon className="mr-3 h-5 w-5" />
-                  <span className="flex-1 text-left">{item.name}</span>
-                  {item.isNew && (
-                    <Badge className="ml-2 bg-green-100 text-green-800 text-xs px-2 py-1 font-medium">
-                      NIEUW
-                    </Badge>
-                  )}
-                </Button>
+                  <Button
+                    variant={isActive ? "default" : "ghost"}
+                    className={cn(
+                      "w-full justify-start h-12 relative transition-all duration-200 group",
+                      isActive
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-gray-700 hover:bg-gray-50 hover:text-gray-900",
+                      item.isNew && !isActive && [
+                        "border border-transparent hover:border-blue-200",
+                        "hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-blue-50/30",
+                        "hover:shadow-sm"
+                      ],
+                      "rounded-lg"
+                    )}
+                    onClick={() => {
+                      soundService.playButtonClick();
+                      router.push(item.href);
+                      setSidebarOpen(false);
+                    }}
+                  >
+                    <motion.div
+                      className="mr-3"
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                    >
+                      <item.icon className={cn(
+                        "h-5 w-5 transition-colors duration-200",
+                        item.isNew && !isActive && "text-blue-600 group-hover:text-blue-700"
+                      )} />
+                    </motion.div>
+                    <span className={cn(
+                      "flex-1 text-left transition-colors duration-200",
+                      item.isNew && !isActive && "font-medium"
+                    )}>
+                      {item.name}
+                    </span>
+
+                    {/* Professional NEW Badge */}
+                    <AnimatePresence>
+                      {item.isNew && (
+                        <motion.div
+                          initial={{ scale: 0.9, opacity: 0, x: 10 }}
+                          animate={{ scale: 1, opacity: 1, x: 0 }}
+                          exit={{ scale: 0.9, opacity: 0, x: 10 }}
+                          transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+                          className="flex items-center"
+                        >
+                          {/* Linear-inspired notification dot */}
+                          <motion.div
+                            className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2.5"
+                            animate={{
+                              opacity: [0.6, 1, 0.6],
+                            }}
+                            transition={{
+                              duration: 1.8,
+                              repeat: Infinity,
+                              ease: "easeInOut"
+                            }}
+                          />
+
+                          {/* Clean, minimal badge inspired by Vercel/Linear */}
+                          <div className="relative group/badge">
+                            <Badge
+                              variant="outline"
+                              className="
+                                px-1.5 py-0 h-5 text-[9px] font-semibold tracking-wide
+                                bg-blue-50/80 hover:bg-blue-100/80
+                                text-blue-700 border-blue-300/50
+                                transition-all duration-200 ease-out
+                                rounded-md
+                                shadow-none hover:shadow-sm
+                                backdrop-blur-sm
+                              "
+                            >
+                              NEW
+                            </Badge>
+
+                            {/* Subtle glow on hover */}
+                            <div className="absolute inset-0 bg-blue-400/20 rounded-md opacity-0 group-hover/badge:opacity-100 transition-opacity duration-300 blur-[1px] -z-10" />
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </Button>
+                </motion.div>
               );
             })}
           </nav>

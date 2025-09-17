@@ -403,6 +403,38 @@ class BTWService {
     return new Date(year, month - 1, 30);
   }
 
+  // Delete a quarter (only draft status allowed)
+  async deleteQuarter(userId: string, quarterId: string): Promise<void> {
+    try {
+      const quarterRef = doc(db, 'btwQuarters', quarterId);
+      const quarterDoc = await getDoc(quarterRef);
+
+      if (!quarterDoc.exists()) {
+        throw new Error('Kwartaal niet gevonden');
+      }
+
+      const quarterData = quarterDoc.data() as BTWQuarter;
+
+      // Verify this quarter belongs to the user
+      if (quarterData.userId !== userId) {
+        throw new Error('Geen toegang om dit kwartaal te verwijderen');
+      }
+
+      // Only allow deletion of draft status quarters
+      if (quarterData.status !== 'draft') {
+        throw new Error('Alleen concept kwartalen kunnen worden verwijderd');
+      }
+
+      // Delete the quarter
+      await deleteDoc(quarterRef);
+
+      console.log(`Quarter ${quarterId} successfully deleted`);
+    } catch (error) {
+      console.error('Error deleting quarter:', error);
+      throw error;
+    }
+  }
+
   // Update quarter status (draft -> filed -> paid)
   async updateQuarterStatus(userId: string, quarterId: string, status: BTWQuarter['status']): Promise<BTWQuarter> {
     try {

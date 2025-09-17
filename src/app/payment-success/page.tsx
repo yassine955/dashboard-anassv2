@@ -21,6 +21,7 @@ function PaymentSuccessContent() {
 
     const invoiceId = searchParams.get('invoice');
     const paymentStatus = searchParams.get('payment');
+    const provider = searchParams.get('provider');
 
     useEffect(() => {
         if (!invoiceId) {

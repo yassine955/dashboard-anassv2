@@ -19,6 +19,17 @@ import {
 import { db } from "./firebase"
 import { Client, Product, Invoice } from "@/types"
 
+// Helper function to safely update Firebase documents (filters out undefined values)
+function createSafeUpdateData(data: Record<string, any>): Record<string, any> {
+    const safeData: Record<string, any> = {};
+    for (const [key, value] of Object.entries(data)) {
+        if (value !== undefined && value !== null) {
+            safeData[key] = value;
+        }
+    }
+    return safeData;
+}
+
 // ----------------- Client Services -----------------
 export const clientService = {
     // Create client
@@ -308,10 +319,10 @@ export const invoiceService = {
             }
         }
 
-        const updatedData = {
+        const updatedData = createSafeUpdateData({
             ...updateData,
             updatedAt: serverTimestamp(),
-        }
+        })
 
         await updateDoc(docRef, updatedData)
         return { id: invoiceId, ...updatedData } as Invoice
@@ -350,5 +361,58 @@ export const invoiceService = {
             )
             callback(invoices)
         })
+    },
+
+    async duplicateInvoice(
+        originalInvoice: Invoice,
+        userId?: string
+    ): Promise<Invoice> {
+        // If userId is provided, verify ownership
+        if (userId && originalInvoice.userId !== userId) {
+            throw new Error("Access denied: Invoice belongs to another user")
+        }
+
+        const newInvoiceNumber = this.generateInvoiceNumber(originalInvoice.userId)
+
+        // Create clean invoice data without id, client, and other computed fields
+        const duplicatedInvoiceData: any = {
+            userId: originalInvoice.userId,
+            invoiceNumber: newInvoiceNumber,
+            clientId: originalInvoice.clientId,
+            invoiceDate: originalInvoice.invoiceDate,
+            dueDate: originalInvoice.dueDate,
+            subtotal: originalInvoice.subtotal,
+            vatAmount: originalInvoice.vatAmount,
+            totalAmount: originalInvoice.totalAmount,
+            status: 'draft' as const,
+            notes: originalInvoice.notes || '',
+            items: originalInvoice.items.map(item => {
+                const newItem: any = {
+                    id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                    description: item.description,
+                    quantity: item.quantity,
+                    unitPrice: item.unitPrice,
+                    vatRate: item.vatRate,
+                    lineTotal: item.lineTotal
+                };
+
+                // Only add productId if it exists and is not undefined
+                if (item.productId !== undefined && item.productId !== null) {
+                    newItem.productId = item.productId;
+                }
+
+                return newItem;
+            }),
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        }
+
+        // Only add optional fields if they have values
+        if (originalInvoice.paymentTerms !== undefined && originalInvoice.paymentTerms !== null) {
+            duplicatedInvoiceData.paymentTerms = originalInvoice.paymentTerms;
+        }
+
+        const docRef = await addDoc(collection(db, "invoices"), duplicatedInvoiceData)
+        return { id: docRef.id, ...duplicatedInvoiceData } as Invoice
     },
 }

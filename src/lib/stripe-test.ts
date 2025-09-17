@@ -4,6 +4,11 @@
 import { stripe } from './stripe-server';
 
 export async function testStripeConnection() {
+    if (!stripe) {
+        console.error('❌ Stripe not configured - missing secret key');
+        return { success: false, error: 'Stripe not configured' };
+    }
+
     try {
         // Test basic Stripe API connection
         const account = await stripe.accounts.retrieve();
@@ -18,6 +23,11 @@ export async function testStripeConnection() {
 }
 
 export async function testPaymentLinkCreation() {
+    if (!stripe) {
+        console.error('❌ Stripe not configured - missing secret key');
+        return { success: false, error: 'Stripe not configured' };
+    }
+
     try {
         const testAmount = 10.00; // €10.00
         const testDescription = 'Test Payment Link';
@@ -55,6 +65,11 @@ export async function testPaymentLinkCreation() {
 }
 
 export async function testCheckoutSessionCreation() {
+    if (!stripe) {
+        console.error('❌ Stripe not configured - missing secret key');
+        return { success: false, error: 'Stripe not configured' };
+    }
+
     try {
         const testAmount = 15.00; // €15.00
         const testDescription = 'Test Checkout Session';

@@ -26,7 +26,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Search, Mail, ExternalLink, CreditCard, CheckCircle, Clock, AlertCircle, Euro, Zap, Smartphone } from 'lucide-react';
+import { Search, Mail, ExternalLink, CreditCard, CheckCircle, Clock, AlertCircle, Euro, Zap, Smartphone, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 
@@ -108,6 +108,7 @@ export default function PaymentsPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentUser?.uid}`, // Add auth header
         },
         body: JSON.stringify({
           invoiceId: invoice.id,
@@ -115,6 +116,7 @@ export default function PaymentsPage() {
           description: `Factuur ${invoice.invoiceNumber}`,
           clientId: invoice.clientId,
           useCheckoutSession,
+          userId: currentUser?.uid,
           metadata: {
             invoiceId: invoice.id,
             clientId: invoice.clientId,
@@ -232,13 +234,79 @@ export default function PaymentsPage() {
     setIsPaymentMethodDialogOpen(true);
   };
 
-  const createPaymentWithMethod = async (useCheckoutSession: boolean) => {
+  const createPaymentWithMethod = async (method: 'payment_link' | 'checkout_session' | 'ing') => {
     if (!selectedInvoice) return;
 
-    const url = await createPaymentLink(selectedInvoice, useCheckoutSession);
-    if (url) {
+    if (method === 'ing') {
+      await createINGPayment(selectedInvoice);
+    } else {
+      const url = await createPaymentLink(selectedInvoice, method === 'checkout_session');
+      if (url) {
+        setIsPaymentMethodDialogOpen(false);
+        setSelectedInvoice(null);
+      }
+    }
+  };
+
+  const createINGPayment = async (invoice: Invoice) => {
+    try {
+      // Validate invoice and amount before creating ING payment
+      const invoiceValidation = validateInvoiceForPayment(invoice);
+      if (!invoiceValidation.isValid) {
+        invoiceValidation.errors.forEach(error => toast.error(error));
+        return null;
+      }
+
+      const amountValidation = validatePaymentAmount(invoice.totalAmount);
+      if (!amountValidation.isValid) {
+        amountValidation.errors.forEach(error => toast.error(error));
+        return null;
+      }
+
+      // Create ING payment request
+      const response = await fetch('/api/create-ing-payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentUser?.uid}`,
+        },
+        body: JSON.stringify({
+          invoiceId: invoice.id,
+          amount: invoice.totalAmount,
+          description: `Factuur ${invoice.invoiceNumber}`,
+          clientId: invoice.clientId,
+          userId: currentUser?.uid,
+          metadata: {
+            invoiceId: invoice.id,
+            clientId: invoice.clientId,
+            invoiceNumber: invoice.invoiceNumber,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        const formattedError = formatPaymentError(errorData.error || 'Failed to create ING payment');
+        throw new Error(formattedError);
+      }
+
+      const { url, paymentId } = await response.json();
+
+      // Update invoice with ING payment link
+      await invoiceService.updateInvoice(invoice.id, {
+        paymentLink: url,
+        status: 'sent'
+      }, currentUser?.uid);
+
+      toast.success('ING betaling succesvol aangemaakt!');
       setIsPaymentMethodDialogOpen(false);
       setSelectedInvoice(null);
+      return url;
+    } catch (error) {
+      const formattedError = formatPaymentError(error);
+      toast.error(formattedError);
+      console.error('Error creating ING payment:', error);
+      return null;
     }
   };
 
@@ -522,7 +590,7 @@ export default function PaymentsPage() {
 
       {/* Payment Method Dialog */}
       <Dialog open={isPaymentMethodDialogOpen} onOpenChange={setIsPaymentMethodDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Betaalmethode Kiezen</DialogTitle>
             <DialogDescription>
@@ -534,7 +602,7 @@ export default function PaymentsPage() {
               <Button
                 variant="outline"
                 className="h-auto p-4 flex flex-col items-start space-y-2"
-                onClick={() => createPaymentWithMethod(false)}
+                onClick={() => createPaymentWithMethod('payment_link')}
               >
                 <div className="flex items-center space-x-2">
                   <CreditCard className="h-5 w-5" />
@@ -548,7 +616,7 @@ export default function PaymentsPage() {
               <Button
                 variant="outline"
                 className="h-auto p-4 flex flex-col items-start space-y-2"
-                onClick={() => createPaymentWithMethod(true)}
+                onClick={() => createPaymentWithMethod('checkout_session')}
               >
                 <div className="flex items-center space-x-2">
                   <Zap className="h-5 w-5" />
@@ -556,6 +624,20 @@ export default function PaymentsPage() {
                 </div>
                 <p className="text-sm text-gray-600 text-left">
                   Geavanceerde checkout met meer betaalmethoden (iDEAL, SEPA, etc.)
+                </p>
+              </Button>
+
+              <Button
+                variant="outline"
+                className="h-auto p-4 flex flex-col items-start space-y-2"
+                onClick={() => createPaymentWithMethod('ing')}
+              >
+                <div className="flex items-center space-x-2">
+                  <Building2 className="h-5 w-5 text-orange-500" />
+                  <span className="font-medium">ING Bank</span>
+                </div>
+                <p className="text-sm text-gray-600 text-left">
+                  Direct betalen via ING Bank met PSD2 Payment Initiation
                 </p>
               </Button>
             </div>

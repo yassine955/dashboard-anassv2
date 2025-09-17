@@ -5,13 +5,24 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Settings, User, Building, CreditCard, Mail, Save } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Settings, User, Building, CreditCard, Mail, Save, Eye, EyeOff, CheckCircle, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 
 export default function SettingsPage() {
   const { userProfile, updateUserProfile, currentUser } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [showStripeKeys, setShowStripeKeys] = useState(false);
+  const [isStripeDialogOpen, setIsStripeDialogOpen] = useState(false);
+  const [isINGDialogOpen, setIsINGDialogOpen] = useState(false);
 
   // Business Info State
   const [businessInfo, setBusinessInfo] = useState({
@@ -34,6 +45,21 @@ export default function SettingsPage() {
     language: userProfile?.preferences?.language || 'nl',
     invoiceTemplate: userProfile?.preferences?.invoiceTemplate || 'default',
     defaultPaymentTerms: userProfile?.preferences?.defaultPaymentTerms || 30
+  });
+
+  // Payment Settings State
+  const [stripeSettings, setStripeSettings] = useState({
+    publishableKey: userProfile?.paymentSettings?.stripe?.publishableKey || '',
+    secretKey: userProfile?.paymentSettings?.stripe?.secretKey || '',
+    accountId: userProfile?.paymentSettings?.stripe?.accountId || '',
+    isActive: userProfile?.paymentSettings?.stripe?.isActive || false
+  });
+
+  const [ingSettings, setINGSettings] = useState({
+    clientId: userProfile?.paymentSettings?.ing?.clientId || '',
+    clientSecret: userProfile?.paymentSettings?.ing?.clientSecret || '',
+    creditorIban: userProfile?.paymentSettings?.ing?.creditorIban || '',
+    isActive: userProfile?.paymentSettings?.ing?.isActive || false
   });
 
   const handleSaveBusinessInfo = async () => {
@@ -61,6 +87,62 @@ export default function SettingsPage() {
     } catch (error) {
       toast.error('Er is een fout opgetreden bij het opslaan van de voorkeuren.');
       console.error('Error saving preferences:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveStripeSettings = async () => {
+    setLoading(true);
+    try {
+      // Test Stripe connection first
+      const testResponse = await fetch('/api/test-stripe-connection', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          publishableKey: stripeSettings.publishableKey,
+          secretKey: stripeSettings.secretKey,
+        }),
+      });
+
+      if (!testResponse.ok) {
+        throw new Error('Stripe configuratie test mislukt. Controleer je API sleutels.');
+      }
+
+      await updateUserProfile({
+        paymentSettings: {
+          ...userProfile?.paymentSettings,
+          stripe: stripeSettings
+        }
+      });
+
+      toast.success('Stripe configuratie succesvol opgeslagen!');
+      setIsStripeDialogOpen(false);
+    } catch (error: any) {
+      toast.error(error.message || 'Er is een fout opgetreden bij het opslaan van Stripe instellingen.');
+      console.error('Error saving Stripe settings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveINGSettings = async () => {
+    setLoading(true);
+    try {
+      await updateUserProfile({
+        paymentSettings: {
+          ...userProfile?.paymentSettings,
+          ing: ingSettings
+        }
+      });
+
+      toast.success('ING configuratie succesvol opgeslagen!');
+      setIsINGDialogOpen(false);
+    } catch (error) {
+      toast.error('Er is een fout opgetreden bij het opslaan van ING instellingen.');
+      console.error('Error saving ING settings:', error);
     } finally {
       setLoading(false);
     }
@@ -332,23 +414,55 @@ export default function SettingsPage() {
             <CardContent className="space-y-4">
               <div className="p-4 border rounded-lg">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium">Stripe</h4>
-                    <p className="text-sm text-gray-500">Online betalingen accepteren</p>
+                  <div className="flex items-center space-x-3">
+                    <div>
+                      <h4 className="font-medium flex items-center">
+                        Stripe
+                        {userProfile?.paymentSettings?.stripe?.isActive && (
+                          <CheckCircle className="ml-2 h-4 w-4 text-green-500" />
+                        )}
+                      </h4>
+                      <p className="text-sm text-gray-500">Online betalingen accepteren</p>
+                      {userProfile?.paymentSettings?.stripe?.publishableKey && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          Geconfigureerd: pk_***{userProfile.paymentSettings.stripe.publishableKey.slice(-4)}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <Button variant="outline" size="sm">
-                    Configureren
+                  <Button
+                    variant={userProfile?.paymentSettings?.stripe?.isActive ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setIsStripeDialogOpen(true)}
+                  >
+                    {userProfile?.paymentSettings?.stripe?.isActive ? 'Bewerken' : 'Configureren'}
                   </Button>
                 </div>
               </div>
               <div className="p-4 border rounded-lg">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium">ING Bank</h4>
-                    <p className="text-sm text-gray-500">Bankrekening integratie</p>
+                  <div className="flex items-center space-x-3">
+                    <div>
+                      <h4 className="font-medium flex items-center">
+                        ING Bank
+                        {userProfile?.paymentSettings?.ing?.isActive && (
+                          <CheckCircle className="ml-2 h-4 w-4 text-green-500" />
+                        )}
+                      </h4>
+                      <p className="text-sm text-gray-500">Directe bankoverschrijvingen via PSD2</p>
+                      {userProfile?.paymentSettings?.ing?.creditorIban && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          IBAN: {userProfile.paymentSettings.ing.creditorIban.slice(0, 8)}***
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <Button variant="outline" size="sm">
-                    Configureren
+                  <Button
+                    variant={userProfile?.paymentSettings?.ing?.isActive ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setIsINGDialogOpen(true)}
+                  >
+                    {userProfile?.paymentSettings?.ing?.isActive ? 'Bewerken' : 'Configureren'}
                   </Button>
                 </div>
               </div>
@@ -396,6 +510,165 @@ export default function SettingsPage() {
           </Card>
         </motion.div>
       </div>
+
+      {/* Stripe Configuration Dialog */}
+      <Dialog open={isStripeDialogOpen} onOpenChange={setIsStripeDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Stripe Configureren</DialogTitle>
+            <DialogDescription>
+              Configureer je Stripe API sleutels om betalingen te accepteren.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Publishable Key *</label>
+              <Input
+                placeholder="pk_test_..."
+                value={stripeSettings.publishableKey}
+                onChange={(e) => setStripeSettings(prev => ({ ...prev, publishableKey: e.target.value }))}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Je publieke Stripe sleutel (begint met pk_)
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Secret Key *</label>
+              <div className="relative">
+                <Input
+                  type={showStripeKeys ? "text" : "password"}
+                  placeholder="sk_test_..."
+                  value={stripeSettings.secretKey}
+                  onChange={(e) => setStripeSettings(prev => ({ ...prev, secretKey: e.target.value }))}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3"
+                  onClick={() => setShowStripeKeys(!showStripeKeys)}
+                >
+                  {showStripeKeys ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Je geheime Stripe sleutel (begint met sk_)
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Account ID (optioneel)</label>
+              <Input
+                placeholder="acct_..."
+                value={stripeSettings.accountId}
+                onChange={(e) => setStripeSettings(prev => ({ ...prev, accountId: e.target.value }))}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Voor Stripe Connect accounts
+              </p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="stripe-active"
+                checked={stripeSettings.isActive}
+                onChange={(e) => setStripeSettings(prev => ({ ...prev, isActive: e.target.checked }))}
+                className="rounded border-gray-300"
+              />
+              <label htmlFor="stripe-active" className="text-sm">
+                Stripe integratie activeren
+              </label>
+            </div>
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start space-x-2">
+                <AlertTriangle className="h-4 w-4 text-blue-600 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-blue-800">Belangrijke informatie</p>
+                  <p className="text-xs text-blue-700 mt-1">
+                    Je API sleutels worden veilig opgeslagen en gebruikt voor het verwerken van betalingen.
+                    Gebruik test sleutels (pk_test_, sk_test_) voor development.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsStripeDialogOpen(false)}>
+              Annuleren
+            </Button>
+            <Button
+              onClick={handleSaveStripeSettings}
+              disabled={loading || !stripeSettings.publishableKey || !stripeSettings.secretKey}
+            >
+              {loading ? 'Opslaan...' : 'Opslaan & Testen'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ING Configuration Dialog */}
+      <Dialog open={isINGDialogOpen} onOpenChange={setIsINGDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>ING Bank Configureren</DialogTitle>
+            <DialogDescription>
+              Configureer je ING Developer API gegevens voor PSD2 betalingen.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Client ID *</label>
+              <Input
+                placeholder="8f8ef068-770b-405e-9b21-f8da01924c4d"
+                value={ingSettings.clientId}
+                onChange={(e) => setINGSettings(prev => ({ ...prev, clientId: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Client Secret *</label>
+              <Input
+                type="password"
+                placeholder="Your ING client secret"
+                value={ingSettings.clientSecret}
+                onChange={(e) => setINGSettings(prev => ({ ...prev, clientSecret: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Creditor IBAN *</label>
+              <Input
+                placeholder="NL90ABNA0585619023"
+                value={ingSettings.creditorIban}
+                onChange={(e) => setINGSettings(prev => ({ ...prev, creditorIban: e.target.value }))}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Je bedrijfs IBAN waar betalingen naartoe gaan
+              </p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="ing-active"
+                checked={ingSettings.isActive}
+                onChange={(e) => setINGSettings(prev => ({ ...prev, isActive: e.target.checked }))}
+                className="rounded border-gray-300"
+              />
+              <label htmlFor="ing-active" className="text-sm">
+                ING integratie activeren
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsINGDialogOpen(false)}>
+              Annuleren
+            </Button>
+            <Button
+              onClick={handleSaveINGSettings}
+              disabled={loading || !ingSettings.clientId || !ingSettings.clientSecret || !ingSettings.creditorIban}
+            >
+              {loading ? 'Opslaan...' : 'Opslaan'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

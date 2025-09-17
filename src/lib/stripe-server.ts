@@ -1,13 +1,18 @@
 import Stripe from "stripe"
 
-// Check if Stripe secret key is available
-if (!process.env.STRIPE_SECRET_KEY) {
-    throw new Error("STRIPE_SECRET_KEY environment variable is not set. Please configure Stripe in your .env.local file.");
+// Create a Stripe instance with user-specific keys
+function createStripeInstance(secretKey: string) {
+    return new Stripe(secretKey, {
+        apiVersion: "2024-06-20",
+    });
 }
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: "2024-06-20",
-})
+// Fallback to global Stripe instance for backward compatibility
+export const stripe = process.env.STRIPE_SECRET_KEY
+    ? new Stripe(process.env.STRIPE_SECRET_KEY!, {
+        apiVersion: "2024-06-20",
+    })
+    : null;
 
 // Server-only functions
 export async function createPaymentLink({
@@ -16,7 +21,9 @@ export async function createPaymentLink({
     description,
     metadata = {},
     invoiceId,
-    clientId
+    clientId,
+    stripeSecretKey,
+    stripePublishableKey
 }: {
     amount: number;
     currency?: string;
@@ -24,8 +31,17 @@ export async function createPaymentLink({
     metadata?: Record<string, any>;
     invoiceId: string;
     clientId: string;
+    stripeSecretKey?: string;
+    stripePublishableKey?: string;
 }) {
-    return stripe.paymentLinks.create({
+    // Use user-specific Stripe instance or fallback to global
+    const stripeInstance = stripeSecretKey ? createStripeInstance(stripeSecretKey) : stripe;
+
+    if (!stripeInstance) {
+        throw new Error("No Stripe configuration available");
+    }
+
+    return stripeInstance.paymentLinks.create({
         line_items: [
             {
                 price_data: {
@@ -65,7 +81,9 @@ export async function createCheckoutSession({
     invoiceId,
     clientId,
     successUrl,
-    cancelUrl
+    cancelUrl,
+    stripeSecretKey,
+    stripePublishableKey
 }: {
     amount: number;
     currency?: string;
@@ -75,8 +93,17 @@ export async function createCheckoutSession({
     clientId: string;
     successUrl?: string;
     cancelUrl?: string;
+    stripeSecretKey?: string;
+    stripePublishableKey?: string;
 }) {
-    return stripe.checkout.sessions.create({
+    // Use user-specific Stripe instance or fallback to global
+    const stripeInstance = stripeSecretKey ? createStripeInstance(stripeSecretKey) : stripe;
+
+    if (!stripeInstance) {
+        throw new Error("No Stripe configuration available");
+    }
+
+    return stripeInstance.checkout.sessions.create({
         payment_method_types: ["card", "ideal", "sepa_debit"],
         line_items: [
             {

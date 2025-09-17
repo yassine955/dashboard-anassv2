@@ -25,7 +25,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Plus, Search, Edit, Trash2, FileText, Download, Mail, Eye, Euro } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, FileText, Download, Mail, Eye, Euro, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Timestamp } from 'firebase/firestore';
@@ -207,6 +207,21 @@ export default function InvoicesPage() {
     } catch (error) {
       toast.error('Er is een fout opgetreden bij het verwijderen van de factuur.');
       console.error('Error deleting invoice:', error);
+    }
+  };
+
+  const handleDuplicate = async (invoice: Invoice) => {
+    if (!currentUser) {
+      toast.error('Je moet ingelogd zijn om een factuur te dupliceren.');
+      return;
+    }
+
+    try {
+      await invoiceService.duplicateInvoice(invoice, currentUser.uid);
+      toast.success('Factuur succesvol gedupliceerd!');
+    } catch (error) {
+      toast.error('Er is een fout opgetreden bij het dupliceren van de factuur.');
+      console.error('Error duplicating invoice:', error);
     }
   };
 
@@ -584,6 +599,13 @@ export default function InvoicesPage() {
                               onClick={() => handleDownloadPDF(invoice)}
                             >
                               <Download className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDuplicate(invoice)}
+                            >
+                              <Copy className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="outline"

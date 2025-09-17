@@ -24,7 +24,21 @@ export interface User {
     invoiceTemplate: string;
     defaultPaymentTerms: number; // days
   };
-  stripeAccountId?: string;
+  paymentSettings?: {
+    stripe?: {
+      publishableKey: string;
+      secretKey: string;
+      accountId?: string;
+      isActive: boolean;
+    };
+    ing?: {
+      clientId: string;
+      clientSecret: string;
+      creditorIban: string;
+      isActive: boolean;
+    };
+  };
+  stripeAccountId?: string; // Legacy field - keeping for backward compatibility
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

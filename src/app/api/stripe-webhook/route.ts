@@ -4,6 +4,17 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import Stripe from "stripe";
 
+// Helper function to safely update Firebase documents (filters out undefined values)
+function createSafeUpdateData(data: Record<string, any>): Record<string, any> {
+    const safeData: Record<string, any> = {};
+    for (const [key, value] of Object.entries(data)) {
+        if (value !== undefined && value !== null) {
+            safeData[key] = value;
+        }
+    }
+    return safeData;
+}
+
 export async function POST(request: NextRequest) {
     const body = await request.text();
     const signature = request.headers.get("stripe-signature");
@@ -19,10 +30,17 @@ export async function POST(request: NextRequest) {
     let event: Stripe.Event;
 
     try {
+        if (!stripe) {
+            return NextResponse.json(
+                { error: "Stripe not configured" },
+                { status: 500 }
+            );
+        }
+
         event = stripe.webhooks.constructEvent(
             body,
             signature,
-            process.env.STRIPE_WEBHOOK_SECRET
+            process.env.STRIPE_WEBHOOK_SECRET!
         );
     } catch (err: any) {
         console.error("Webhook signature verification failed:", err.message);
@@ -47,10 +65,12 @@ export async function POST(request: NextRequest) {
                 }
 
                 // Update invoice status to paid
-                await updateDoc(doc(db, 'invoices', invoiceId), {
+                const updateData = createSafeUpdateData({
                     status: "paid",
-                    paymentLink: session.url || undefined,
+                    paymentLink: session.url,
                 });
+
+                await updateDoc(doc(db, 'invoices', invoiceId), updateData);
 
                 console.log(`Invoice ${invoiceId} marked as paid`);
                 break;

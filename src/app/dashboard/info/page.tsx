@@ -35,6 +35,40 @@ interface Update {
 
 const updates: Update[] = [
   {
+    id: 'btw-quarter-closing',
+    title: 'Kwartaal Afsluiten & Geschiedenis Management',
+    description: 'Uitgebreide functionaliteit voor het afsluiten van kwartalen en bekijken van afgesloten kwartaal details.',
+    category: 'new-feature',
+    date: '2025-01-17',
+    version: '0.2.0',
+    details: [
+      'Kwartaal afsluiten functionaliteit met "Kwartaal Afsluiten" knop',
+      'Gescheiden weergave van actieve en afgesloten kwartalen',
+      'Detailweergave van afgesloten kwartalen met volledige uitgaven overzicht',
+      'Automatische status updates van draft naar filed bij afsluiten',
+      'Modal dialog voor kwartaal details met samenvatting en uitgaven tabel',
+      'Verbeterde kwartaal geschiedenis met alleen relevante data'
+    ],
+    relatedPage: '/dashboard/btw'
+  },
+  {
+    id: 'analytics-yearly-comparison',
+    title: 'Uitgebreide Analytics met Jaar Vergelijking',
+    description: 'Nieuwe analytics functionaliteit voor vergelijking van voorgaande jaren en altijd actuele 2025 data.',
+    category: 'analytics',
+    date: '2025-01-17',
+    version: '0.2.0',
+    details: [
+      'Jaar vergelijking chart voor laatste 5 jaar met omzet, kosten en winst',
+      'Uitklapbare detailweergave per jaar met winstmarge berekeningen',
+      'Beste jaar identificatie voor omzet en winst met automatische highlights',
+      'Gefixeerde 2025 overzichtskaarten die altijd actuele data tonen',
+      'Gemiddelde jaarwinst berekening over meerdere jaren',
+      'Verbeterde data loading voor parallelle jaar queries'
+    ],
+    relatedPage: '/dashboard/analytics'
+  },
+  {
     id: 'btw-analytics-fix',
     title: 'BTW Analytics Zero Values Opgelost',
     description: 'Belangrijke fix voor BTW berekeningen die voorheen 0 toonden terwijl er wel facturen waren.',
@@ -155,10 +189,10 @@ export default function InfoPage() {
   };
 
   const recentUpdates = updates.filter(update =>
-    new Date(update.date) >= new Date('2024-09-17')
+    new Date(update.date) >= new Date('2025-01-17')
   );
   const olderUpdates = updates.filter(update =>
-    new Date(update.date) < new Date('2024-09-17')
+    new Date(update.date) < new Date('2025-01-17')
   );
 
   return (
@@ -181,7 +215,7 @@ export default function InfoPage() {
           </div>
           <div className="text-right">
             <Badge variant="outline" className="text-sm">
-              Versie 0.1.1
+              Versie 0.2.0
             </Badge>
             <p className="text-sm text-gray-500 mt-1">
               Laatste update: {new Date().toLocaleDateString('nl-NL')}
@@ -200,7 +234,7 @@ export default function InfoPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-green-600" />
-              Adobe Editor Dashboard v0.1.1
+              Adobe Editor Dashboard v0.2.0
             </CardTitle>
           </CardHeader>
           <CardContent>

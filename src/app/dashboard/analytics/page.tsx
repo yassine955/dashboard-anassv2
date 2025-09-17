@@ -29,7 +29,10 @@ import {
   BarChart3,
   PieChart as PieChartIcon,
   RefreshCw,
-  Download
+  Download,
+  ChevronDown,
+  ChevronUp,
+  Eye
 } from 'lucide-react';
 import { MonthlyFinancials } from '@/types';
 
@@ -40,6 +43,8 @@ export default function AnalyticsPage() {
   const [monthlyData, setMonthlyData] = useState<MonthlyFinancials[]>([]);
   const [financialSummary, setFinancialSummary] = useState<any>(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [yearlyComparison, setYearlyComparison] = useState<any[]>([]);
+  const [showDetailedView, setShowDetailedView] = useState(false);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -51,13 +56,43 @@ export default function AnalyticsPage() {
 
     try {
       setLoading(true);
+      const currentYear = new Date().getFullYear();
+
+      // Load data for selected year and get yearly comparison
       const [yearlyData, summary] = await Promise.all([
         financialAnalyticsService.getYearlyFinancials(currentUser.uid, selectedYear),
         financialAnalyticsService.getFinancialSummary(currentUser.uid)
       ]);
 
+      // Load yearly comparison data for past 5 years
+      const yearlyPromises = [];
+      for (let year = currentYear; year >= currentYear - 4; year--) {
+        yearlyPromises.push(
+          financialAnalyticsService.getYearlyFinancials(currentUser.uid, year)
+        );
+      }
+
+      const allYearlyData = await Promise.all(yearlyPromises);
+      const yearComparison = allYearlyData.map((data, index) => {
+        const year = currentYear - index;
+        const totals = data.reduce(
+          (acc, month) => ({
+            totalOmzet: acc.totalOmzet + month.omzet,
+            totalKosten: acc.totalKosten + month.kosten,
+            totalWinst: acc.totalWinst + month.winst
+          }),
+          { totalOmzet: 0, totalKosten: 0, totalWinst: 0 }
+        );
+        return {
+          year,
+          ...totals,
+          months: data
+        };
+      });
+
       setMonthlyData(yearlyData);
       setFinancialSummary(summary);
+      setYearlyComparison(yearComparison);
     } catch (error) {
       console.error('Error loading analytics data:', error);
     } finally {
@@ -463,6 +498,198 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
         </div>
+      </motion.div>
+
+      {/* Yearly Comparison */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.5 }}
+      >
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Jaar Vergelijking (Laatste 5 Jaar)
+              </CardTitle>
+              <Button
+                variant="outline"
+                onClick={() => setShowDetailedView(!showDetailedView)}
+              >
+                {showDetailedView ? (
+                  <>
+                    <ChevronUp className="h-4 w-4 mr-2" />
+                    Minder details
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-4 w-4 mr-2" />
+                    Meer details
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {yearlyComparison.length > 0 ? (
+              <div className="space-y-4">
+                {/* Yearly Bar Chart */}
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={yearlyComparison} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="year" />
+                      <YAxis tickFormatter={formatCurrency} />
+                      <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                      <Legend />
+                      <Bar dataKey="totalOmzet" fill="#22C55E" name="Omzet" />
+                      <Bar dataKey="totalKosten" fill="#EF4444" name="Kosten" />
+                      <Bar dataKey="totalWinst" fill="#3B82F6" name="Winst" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Detailed Year Cards */}
+                {showDetailedView && (
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {yearlyComparison.map((yearData) => (
+                      <Card key={yearData.year} className={`${
+                        yearData.year === new Date().getFullYear() ? 'ring-2 ring-blue-500' : ''
+                      }`}>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-lg flex justify-between items-center">
+                            <span>{yearData.year}</span>
+                            {yearData.year === new Date().getFullYear() && (
+                              <Badge className="bg-blue-100 text-blue-800">Huidig</Badge>
+                            )}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3">
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-600">Omzet:</span>
+                              <span className="font-semibold text-green-600">
+                                {formatCurrency(yearData.totalOmzet)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-600">Kosten:</span>
+                              <span className="font-semibold text-red-600">
+                                {formatCurrency(yearData.totalKosten)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between border-t pt-2">
+                              <span className="text-sm font-medium">Winst:</span>
+                              <span className={`font-bold ${
+                                yearData.totalWinst >= 0 ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                {formatCurrency(yearData.totalWinst)}
+                              </span>
+                            </div>
+                            {yearData.totalOmzet > 0 && (
+                              <div className="text-center text-xs text-gray-500">
+                                Marge: {formatPercentage((yearData.totalWinst / yearData.totalOmzet) * 100)}
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+
+                {/* Summary Stats */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 p-4 bg-gray-50 rounded-lg">
+                  <div className="text-center">
+                    <p className="text-sm text-gray-600">Beste Jaar (Omzet)</p>
+                    <p className="text-lg font-bold text-green-600">
+                      {yearlyComparison.reduce((best, year) =>
+                        year.totalOmzet > best.totalOmzet ? year : best
+                      ).year}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {formatCurrency(Math.max(...yearlyComparison.map(y => y.totalOmzet)))}
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm text-gray-600">Beste Jaar (Winst)</p>
+                    <p className="text-lg font-bold text-blue-600">
+                      {yearlyComparison.reduce((best, year) =>
+                        year.totalWinst > best.totalWinst ? year : best
+                      ).year}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {formatCurrency(Math.max(...yearlyComparison.map(y => y.totalWinst)))}
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm text-gray-600">Gemiddelde Jaarwinst</p>
+                    <p className={`text-lg font-bold ${
+                      (yearlyComparison.reduce((sum, year) => sum + year.totalWinst, 0) / yearlyComparison.length) >= 0 ?
+                      'text-green-600' : 'text-red-600'
+                    }`}>
+                      {formatCurrency(yearlyComparison.reduce((sum, year) => sum + year.totalWinst, 0) / yearlyComparison.length)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Geen historische data beschikbaar.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Fixed Current Year Summary Cards */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.6 }}
+      >
+        <Card className="bg-gradient-to-r from-blue-50 to-green-50 border-blue-200">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-blue-600" />
+              2025 Overzicht (Altijd Actueel)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {financialSummary && (
+              <div className="grid gap-4 md:grid-cols-4">
+                <div className="text-center p-4 bg-white rounded-lg shadow-sm">
+                  <p className="text-2xl font-bold text-green-600">
+                    {formatCurrency(financialSummary.yearToDate?.totalOmzet || 0)}
+                  </p>
+                  <p className="text-sm text-gray-600">Omzet YTD</p>
+                </div>
+                <div className="text-center p-4 bg-white rounded-lg shadow-sm">
+                  <p className="text-2xl font-bold text-red-600">
+                    {formatCurrency(financialSummary.yearToDate?.totalKosten || 0)}
+                  </p>
+                  <p className="text-sm text-gray-600">Kosten YTD</p>
+                </div>
+                <div className="text-center p-4 bg-white rounded-lg shadow-sm">
+                  <p className={`text-2xl font-bold ${
+                    (financialSummary.yearToDate?.totalWinst || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {formatCurrency(financialSummary.yearToDate?.totalWinst || 0)}
+                  </p>
+                  <p className="text-sm text-gray-600">Winst YTD</p>
+                </div>
+                <div className="text-center p-4 bg-white rounded-lg shadow-sm">
+                  <p className="text-2xl font-bold text-blue-600">
+                    {formatCurrency(financialSummary.currentMonth?.omzet || 0)}
+                  </p>
+                  <p className="text-sm text-gray-600">Huidige Maand</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </motion.div>
     </div>
   );

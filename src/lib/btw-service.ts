@@ -323,13 +323,206 @@ class BTWService {
     }
   }
 
+  // Manually open/create a new quarter
+  async openNewQuarter(userId: string, year: number, quarter: number): Promise<BTWQuarter> {
+    try {
+      // Check if quarter already exists
+      const existingQuarter = await this.getBTWQuarter(userId, year, quarter);
+      if (existingQuarter) {
+        throw new Error(`Kwartaal Q${quarter} ${year} bestaat al`);
+      }
+
+      // Create new quarter
+      const quarterId = await this.createBTWQuarter(userId, year, quarter);
+      const quarterDoc = await getDoc(doc(db, 'btwQuarters', quarterId));
+      return { id: quarterId, ...quarterDoc.data() } as BTWQuarter;
+    } catch (error) {
+      console.error('Error opening new quarter:', error);
+      throw error;
+    }
+  }
+
+  // Get available quarters to open (current and next quarters only)
+  getAvailableQuartersToOpen(): Array<{year: number, quarter: number, name: string, dueDate: Date}> {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentQuarter = Math.ceil((now.getMonth() + 1) / 3);
+
+    const available = [];
+
+    // Current quarter
+    available.push({
+      year: currentYear,
+      quarter: currentQuarter,
+      name: `Q${currentQuarter} ${currentYear}`,
+      dueDate: this.calculateDueDateAsDate(currentYear, currentQuarter)
+    });
+
+    // Next quarter
+    let nextQuarter = currentQuarter + 1;
+    let nextYear = currentYear;
+    if (nextQuarter > 4) {
+      nextQuarter = 1;
+      nextYear++;
+    }
+
+    available.push({
+      year: nextYear,
+      quarter: nextQuarter,
+      name: `Q${nextQuarter} ${nextYear}`,
+      dueDate: this.calculateDueDateAsDate(nextYear, nextQuarter)
+    });
+
+    // Previous quarter (if not closed)
+    let prevQuarter = currentQuarter - 1;
+    let prevYear = currentYear;
+    if (prevQuarter < 1) {
+      prevQuarter = 4;
+      prevYear--;
+    }
+
+    available.unshift({
+      year: prevYear,
+      quarter: prevQuarter,
+      name: `Q${prevQuarter} ${prevYear}`,
+      dueDate: this.calculateDueDateAsDate(prevYear, prevQuarter)
+    });
+
+    return available;
+  }
+
+  private calculateDueDateAsDate(year: number, quarter: number): Date {
+    let month: number;
+    switch (quarter) {
+      case 1: month = 4; break; // Q1 due April 30
+      case 2: month = 7; break; // Q2 due July 31
+      case 3: month = 10; break; // Q3 due October 31
+      case 4: month = 1; year += 1; break; // Q4 due January 31 of next year
+      default: month = 4;
+    }
+    return new Date(year, month - 1, 30);
+  }
+
+  // Update quarter status (draft -> filed -> paid)
+  async updateQuarterStatus(userId: string, quarterId: string, status: BTWQuarter['status']): Promise<BTWQuarter> {
+    try {
+      const quarterRef = doc(db, 'btwQuarters', quarterId);
+      const quarterDoc = await getDoc(quarterRef);
+
+      if (!quarterDoc.exists()) {
+        throw new Error('Quarter not found');
+      }
+
+      const quarterData = quarterDoc.data() as BTWQuarter;
+
+      // Verify this quarter belongs to the user
+      if (quarterData.userId !== userId) {
+        throw new Error('Unauthorized to update this quarter');
+      }
+
+      const updateData: any = {
+        status,
+        updatedAt: serverTimestamp()
+      };
+
+      // Add timestamps based on status
+      if (status === 'filed' && quarterData.status === 'draft') {
+        updateData.filedAt = serverTimestamp();
+      } else if (status === 'paid' && quarterData.status === 'filed') {
+        updateData.paidAt = serverTimestamp();
+      }
+
+      await updateDoc(quarterRef, updateData);
+
+      // Return updated quarter data
+      const updatedDoc = await getDoc(quarterRef);
+      return { id: quarterId, ...updatedDoc.data() } as BTWQuarter;
+    } catch (error) {
+      console.error('Error updating quarter status:', error);
+      throw error;
+    }
+  }
+
+  // Close a quarter (mark as filed/completed)
+  async closeQuarter(userId: string, quarterId: string): Promise<BTWQuarter> {
+    try {
+      const quarterRef = doc(db, 'btwQuarters', quarterId);
+      const quarterDoc = await getDoc(quarterRef);
+
+      if (!quarterDoc.exists()) {
+        throw new Error('Quarter not found');
+      }
+
+      const quarterData = quarterDoc.data() as BTWQuarter;
+
+      // Verify this quarter belongs to the user
+      if (quarterData.userId !== userId) {
+        throw new Error('Unauthorized to close this quarter');
+      }
+
+      // Update status to filed and add closed date
+      await updateDoc(quarterRef, {
+        status: 'filed' as const,
+        closedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      // Return updated quarter data
+      const updatedDoc = await getDoc(quarterRef);
+      return { id: quarterId, ...updatedDoc.data() } as BTWQuarter;
+    } catch (error) {
+      console.error('Error closing quarter:', error);
+      throw error;
+    }
+  }
+
+  // Get closed quarters (history)
+  async getClosedQuarters(userId: string): Promise<BTWQuarter[]> {
+    try {
+      const q = query(
+        collection(db, 'btwQuarters'),
+        where('userId', '==', userId),
+        where('status', 'in', ['filed', 'paid']),
+        orderBy('year', 'desc'),
+        orderBy('quarter', 'desc')
+      );
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as BTWQuarter[];
+    } catch (error) {
+      console.error('Error fetching closed quarters:', error);
+      throw error;
+    }
+  }
+
+  // Get active quarters (draft status)
+  async getActiveQuarters(userId: string): Promise<BTWQuarter[]> {
+    try {
+      const q = query(
+        collection(db, 'btwQuarters'),
+        where('userId', '==', userId),
+        where('status', '==', 'draft'),
+        orderBy('year', 'desc'),
+        orderBy('quarter', 'desc')
+      );
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as BTWQuarter[];
+    } catch (error) {
+      console.error('Error fetching active quarters:', error);
+      throw error;
+    }
+  }
+
   // Force recalculate all quarters for a user
   async recalculateAllQuarters(userId: string): Promise<BTWQuarter[]> {
     try {
       console.log('Starting recalculation of all quarters for user:', userId);
 
-      // Get all existing quarters to update
-      const existingQuarters = await this.getBTWQuarters(userId);
       const results: BTWQuarter[] = [];
 
       // Also calculate current year quarters if they don't exist

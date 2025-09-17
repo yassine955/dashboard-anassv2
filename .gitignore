@@ -9,6 +9,7 @@ node_modules
 .vscode
 .DS_Store
 tsconfig.tsbuildinfo
+*.tsbuildinfo
 .traycer
 .claude
 .cursor

@@ -8,7 +8,7 @@ node_modules
 .turbo
 .vscode
 .DS_Store
-
+tsconfig.tsbuildinfo
 .traycer
 .claude
 .cursor
@@ -19,3 +19,4 @@ node_modules
 .cursorrules.yaml
 .cursorrules.yml
 
+.vercel

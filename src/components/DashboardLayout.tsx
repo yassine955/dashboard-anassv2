@@ -18,7 +18,8 @@ import {
   X,
   Home,
   Calculator,
-  BarChart3
+  BarChart3,
+  Info
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -35,6 +36,7 @@ const navigation = [
   { name: 'Betalingen', href: '/dashboard/payments', icon: CreditCard },
   { name: 'BTW Beheer', href: '/dashboard/btw', icon: Calculator },
   { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
+  { name: 'Updates & Info', href: '/dashboard/info', icon: Info },
   { name: 'Instellingen', href: '/dashboard/settings', icon: Settings },
 ];
 

@@ -66,37 +66,37 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
+      {/* Enhanced Sidebar with better mobile support */}
       <div className={cn(
-        "fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0",
+        "fixed inset-y-0 left-0 z-50 w-72 sm:w-80 lg:w-64 bg-white shadow-xl lg:shadow-lg transform transition-all duration-300 ease-out lg:translate-x-0 lg:static lg:inset-0",
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex flex-col h-full">
-          {/* Header */}
-          <div className="flex items-center justify-between h-16 px-6 border-b">
-            <div className="flex items-center space-x-3">
+          {/* Enhanced Header with responsive logo */}
+          <div className="flex items-center justify-between h-14 sm:h-16 px-4 sm:px-6 border-b border-gray-200">
+            <div className="flex items-center space-x-3 min-w-0">
               <Image
                 src="/dashboard.png"
                 alt="QuickInvoice Logo"
-                width={180}
-                height={40}
-                className="h-8 w-auto"
+                width={160}
+                height={36}
+                className="h-6 sm:h-8 w-auto"
                 priority
               />
             </div>
             <Button
               variant="ghost"
               size="icon"
-              className="lg:hidden"
+              className="lg:hidden h-10 w-10 rounded-full hover:bg-gray-100 transition-colors"
               onClick={() => setSidebarOpen(false)}
             >
               <X className="h-5 w-5" />
             </Button>
           </div>
 
-          {/* Navigation */}
-          <nav className="flex-1 px-4 py-6 space-y-2">
+          {/* Enhanced Navigation with touch-friendly design */}
+          <nav className="flex-1 px-3 sm:px-4 py-4 sm:py-6 space-y-1 sm:space-y-2 overflow-y-auto">
             {navigation.map((item, index) => {
               const isActive = pathname === item.href;
               return (
@@ -109,7 +109,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   <Button
                     variant={isActive ? "default" : "ghost"}
                     className={cn(
-                      "w-full justify-start h-12 relative transition-all duration-200 group",
+                      "w-full justify-start h-12 sm:h-12 md:h-11 lg:h-12 relative transition-all duration-200 group touch-manipulation",
+                      "text-sm sm:text-base px-3 sm:px-4",
                       isActive
                         ? "bg-primary text-primary-foreground shadow-sm"
                         : "text-gray-700 hover:bg-gray-50 hover:text-gray-900",
@@ -118,7 +119,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                         "hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-blue-50/30",
                         "hover:shadow-sm"
                       ],
-                      "rounded-lg"
+                      "rounded-lg active:scale-95"
                     )}
                     onClick={() => {
                       soundService.playButtonClick();
@@ -138,7 +139,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                       )} />
                     </motion.div>
                     <span className={cn(
-                      "flex-1 text-left transition-colors duration-200",
+                      "flex-1 text-left transition-colors duration-200 truncate",
                       item.isNew && !isActive && "font-medium"
                     )}>
                       {item.name}
@@ -196,9 +197,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             })}
           </nav>
 
-          {/* User Profile & Logout */}
-          <div className="p-4 border-t">
-            <div className="flex items-center space-x-3 mb-4">
+          {/* Enhanced User Profile & Logout */}
+          <div className="p-3 sm:p-4 border-t border-gray-200 bg-gray-50/50">
+            <div className="flex items-center space-x-3 mb-3 sm:mb-4">
               <Avatar
                 src={currentUser?.photoURL || ""}
                 alt={currentUser?.displayName || "User"}
@@ -206,7 +207,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 size="md"
               />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
+                <p className="text-xs sm:text-sm font-medium text-gray-900 truncate">
                   {currentUser?.displayName || 'User'}
                 </p>
                 <p className="text-xs text-gray-500 truncate">
@@ -216,51 +217,65 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
             <Button
               variant="outline"
-              className="w-full justify-start"
+              className="w-full justify-start h-10 sm:h-11 text-sm touch-manipulation active:scale-95 transition-transform"
               onClick={handleLogout}
             >
-              <LogOut className="mr-3 h-4 w-4" />
+              <LogOut className="mr-2 sm:mr-3 h-4 w-4" />
               Uitloggen
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
-        {/* Top bar */}
-        <header className="flex items-center justify-between h-16 px-6 bg-white border-b lg:px-8">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="lg:hidden"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-          <div className="flex items-center space-x-4">
-            <h2 className="text-lg font-semibold text-gray-900">
-              {navigation.find(item => item.href === pathname)?.name || 'Dashboard'}
-            </h2>
+      {/* Enhanced Main Content with responsive design */}
+      <div className="flex-1 flex flex-col overflow-hidden lg:ml-0 min-w-0">
+        {/* Enhanced Top bar with responsive header */}
+        <header className="flex items-center justify-between h-14 sm:h-16 px-4 sm:px-6 lg:px-8 bg-white border-b border-gray-200 shadow-sm">
+          <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden h-9 w-9 sm:h-10 sm:w-10 rounded-full hover:bg-gray-100 touch-manipulation active:scale-95 transition-all"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
+                {navigation.find(item => item.href === pathname)?.name || 'Dashboard'}
+              </h2>
+            </div>
           </div>
-          <div className="flex items-center space-x-4">
-            <span className="text-sm text-gray-500">
+          <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
+            <span className="hidden sm:inline text-sm text-gray-500 truncate">
               Welkom, {currentUser?.displayName?.split(' ')[0] || 'User'}
             </span>
+            {/* Mobile user indicator */}
+            <div className="sm:hidden">
+              <Avatar
+                src={currentUser?.photoURL || ""}
+                alt={currentUser?.displayName || "User"}
+                fallback={currentUser?.displayName || "U"}
+                size="sm"
+              />
+            </div>
           </div>
         </header>
 
-        {/* Content */}
-        <main className="flex-1 overflow-auto p-6 lg:p-8">
-          {children}
+        {/* Enhanced Content with responsive padding */}
+        <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8 bg-gray-50">
+          <div className="mx-auto max-w-7xl">
+            {children}
+          </div>
         </main>
       </div>
 
-      {/* Overlay for mobile */}
+      {/* Enhanced overlay with better mobile interaction */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden transition-opacity duration-300"
           onClick={() => setSidebarOpen(false)}
+          onTouchStart={() => setSidebarOpen(false)}
         />
       )}
     </div>

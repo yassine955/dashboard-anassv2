@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { financialAnalyticsService } from '@/lib/financial-analytics-service';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ResponsiveContainer as UIResponsiveContainer, ResponsiveGrid, FluidText, ResponsiveSpacer } from '@/components/ui/responsive-container';
 import { motion } from 'framer-motion';
 import {
   BarChart,
@@ -36,9 +37,11 @@ import {
 } from 'lucide-react';
 import { MonthlyFinancials } from '@/types';
 import { Badge } from '@/components/ui/badge';
+import { useResponsive } from '@/hooks/useResponsive';
 
 export default function AnalyticsPage() {
   const { currentUser } = useAuth();
+  const { isMobile, responsive } = useResponsive();
   const [loading, setLoading] = useState(true);
   const [calculating, setCalculating] = useState(false);
   const [monthlyData, setMonthlyData] = useState<MonthlyFinancials[]>([]);
@@ -173,180 +176,223 @@ export default function AnalyticsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
+      <UIResponsiveContainer>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </UIResponsiveContainer>
     );
   }
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Financiële Analytics</h1>
-            <p className="text-gray-600">
-              Inzicht in je omzet, kosten en winst per maand
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-              className="px-3 py-2 border rounded-md"
-            >
-              {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(year => (
-                <option key={year} value={year}>{year}</option>
-              ))}
-            </select>
-            <Button onClick={handleRecalculateAnalytics} disabled={calculating}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${calculating ? 'animate-spin' : ''}`} />
-              {calculating ? 'Herberekenen...' : 'Alle Data Herberekenen'}
-            </Button>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Summary Cards */}
-      {financialSummary && (
+    <UIResponsiveContainer>
+      <div className="space-y-6 sm:space-y-8">
+        {/* Enhanced Header with better mobile layout */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
+          transition={{ duration: 0.5 }}
         >
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">
-                  Huidige Maand Omzet
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">
-                  {formatCurrency(financialSummary.currentMonth?.omzet || 0)}
-                </div>
-                {financialSummary.trends.omzetGrowth !== 0 && (
-                  <div className={`flex items-center text-sm ${financialSummary.trends.omzetGrowth > 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                    {financialSummary.trends.omzetGrowth > 0 ?
-                      <TrendingUp className="h-4 w-4 mr-1" /> :
-                      <TrendingDown className="h-4 w-4 mr-1" />
-                    }
-                    {formatPercentage(Math.abs(financialSummary.trends.omzetGrowth))} vs vorige maand
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">
-                  Huidige Maand Kosten
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-red-600">
-                  {formatCurrency(financialSummary.currentMonth?.kosten || 0)}
-                </div>
-                {financialSummary.trends.kostenGrowth !== 0 && (
-                  <div className={`flex items-center text-sm ${financialSummary.trends.kostenGrowth > 0 ? 'text-red-600' : 'text-green-600'
-                    }`}>
-                    {financialSummary.trends.kostenGrowth > 0 ?
-                      <TrendingUp className="h-4 w-4 mr-1" /> :
-                      <TrendingDown className="h-4 w-4 mr-1" />
-                    }
-                    {formatPercentage(Math.abs(financialSummary.trends.kostenGrowth))} vs vorige maand
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">
-                  Huidige Maand Winst
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className={`text-2xl font-bold ${(financialSummary.currentMonth?.winst || 0) >= 0 ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                  {formatCurrency(financialSummary.currentMonth?.winst || 0)}
-                </div>
-                {financialSummary.trends.winstGrowth !== 0 && (
-                  <div className={`flex items-center text-sm ${financialSummary.trends.winstGrowth > 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                    {financialSummary.trends.winstGrowth > 0 ?
-                      <TrendingUp className="h-4 w-4 mr-1" /> :
-                      <TrendingDown className="h-4 w-4 mr-1" />
-                    }
-                    {formatPercentage(Math.abs(financialSummary.trends.winstGrowth))} vs vorige maand
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">
-                  Jaar Totaal Winst
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className={`text-2xl font-bold ${financialSummary.yearToDate.totalWinst >= 0 ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                  {formatCurrency(financialSummary.yearToDate.totalWinst)}
-                </div>
-                <div className="text-sm text-gray-600">
-                  Omzet: {formatCurrency(financialSummary.yearToDate.totalOmzet)}
-                </div>
-              </CardContent>
-            </Card>
+          <div className="flex flex-col space-y-4 sm:flex-row sm:justify-between sm:items-start sm:space-y-0">
+            <div className="min-w-0">
+              <FluidText variant="h1" as="h1" className="text-gray-900">
+                Financiële Analytics
+              </FluidText>
+              <FluidText variant="body" className="text-gray-600 mt-1 sm:mt-2">
+                Inzicht in je omzet, kosten en winst per maand
+              </FluidText>
+            </div>
+            <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2 sm:items-center shrink-0">
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                className="px-3 py-2 border rounded-md text-sm sm:text-base min-w-0 touch-manipulation"
+              >
+                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+              <Button
+                onClick={handleRecalculateAnalytics}
+                disabled={calculating}
+                className="touch-manipulation active:scale-95 transition-transform text-xs sm:text-sm"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${calculating ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">{calculating ? 'Herberekenen...' : 'Alle Data Herberekenen'}</span>
+                <span className="sm:hidden">{calculating ? 'Bezig...' : 'Herberekenen'}</span>
+              </Button>
+            </div>
           </div>
+        </motion.div>
+
+        {/* Enhanced Summary Cards with responsive grid */}
+        {financialSummary && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+          >
+            <ResponsiveGrid cols={{ default: 1, sm: 2, lg: 4 }} gap="md">
+              <Card className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-2 sm:pb-3">
+                  <CardTitle className="text-xs sm:text-sm font-medium text-gray-600 truncate">
+                    Huidige Maand Omzet
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="text-lg sm:text-xl lg:text-2xl font-bold text-green-600 truncate">
+                    {formatCurrency(financialSummary.currentMonth?.omzet || 0)}
+                  </div>
+                  {financialSummary.trends.omzetGrowth !== 0 && (
+                    <div className={`flex items-center text-xs sm:text-sm mt-1 ${financialSummary.trends.omzetGrowth > 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                      {financialSummary.trends.omzetGrowth > 0 ?
+                        <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 mr-1 shrink-0" /> :
+                        <TrendingDown className="h-3 w-3 sm:h-4 sm:w-4 mr-1 shrink-0" />
+                      }
+                      <span className="truncate">
+                        {formatPercentage(Math.abs(financialSummary.trends.omzetGrowth))} vs vorige maand
+                      </span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-2 sm:pb-3">
+                  <CardTitle className="text-xs sm:text-sm font-medium text-gray-600 truncate">
+                    Huidige Maand Kosten
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="text-lg sm:text-xl lg:text-2xl font-bold text-red-600 truncate">
+                    {formatCurrency(financialSummary.currentMonth?.kosten || 0)}
+                  </div>
+                  {financialSummary.trends.kostenGrowth !== 0 && (
+                    <div className={`flex items-center text-xs sm:text-sm mt-1 ${financialSummary.trends.kostenGrowth > 0 ? 'text-red-600' : 'text-green-600'
+                      }`}>
+                      {financialSummary.trends.kostenGrowth > 0 ?
+                        <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 mr-1 shrink-0" /> :
+                        <TrendingDown className="h-3 w-3 sm:h-4 sm:w-4 mr-1 shrink-0" />
+                      }
+                      <span className="truncate">
+                        {formatPercentage(Math.abs(financialSummary.trends.kostenGrowth))} vs vorige maand
+                      </span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-2 sm:pb-3">
+                  <CardTitle className="text-xs sm:text-sm font-medium text-gray-600 truncate">
+                    Huidige Maand Winst
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className={`text-lg sm:text-xl lg:text-2xl font-bold truncate ${(financialSummary.currentMonth?.winst || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                    {formatCurrency(financialSummary.currentMonth?.winst || 0)}
+                  </div>
+                  {financialSummary.trends.winstGrowth !== 0 && (
+                    <div className={`flex items-center text-xs sm:text-sm mt-1 ${financialSummary.trends.winstGrowth > 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                      {financialSummary.trends.winstGrowth > 0 ?
+                        <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 mr-1 shrink-0" /> :
+                        <TrendingDown className="h-3 w-3 sm:h-4 sm:w-4 mr-1 shrink-0" />
+                      }
+                      <span className="truncate">
+                        {formatPercentage(Math.abs(financialSummary.trends.winstGrowth))} vs vorige maand
+                      </span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-2 sm:pb-3">
+                  <CardTitle className="text-xs sm:text-sm font-medium text-gray-600 truncate">
+                    Jaar Totaal Winst
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className={`text-lg sm:text-xl lg:text-2xl font-bold truncate ${financialSummary.yearToDate.totalWinst >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                    {formatCurrency(financialSummary.yearToDate.totalWinst)}
+                  </div>
+                  <div className="text-xs sm:text-sm text-gray-600 mt-1 truncate">
+                    Omzet: {formatCurrency(financialSummary.yearToDate.totalOmzet)}
+                  </div>
+                </CardContent>
+              </Card>
+            </ResponsiveGrid>
         </motion.div>
       )}
 
-      {/* Monthly Bar Chart */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
-      >
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
-              Maandelijkse Omzet, Kosten & Winst ({selectedYear})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-96">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis tickFormatter={formatCurrency} />
-                  <Tooltip
-                    formatter={(value: number) => formatCurrency(value)}
-                    labelFormatter={(label) => {
-                      const monthData = chartData.find(d => d.month === label);
-                      return monthData?.fullMonth || label;
+        {/* Enhanced Monthly Bar Chart with mobile optimization */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          <Card className="hover:shadow-md transition-shadow">
+            <CardHeader className="pb-3 sm:pb-6">
+              <CardTitle className="flex items-center gap-2 text-sm sm:text-base lg:text-lg">
+                <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+                <span className="truncate">
+                  <span className="hidden sm:inline">Maandelijkse Omzet, Kosten & Winst ({selectedYear})</span>
+                  <span className="sm:hidden">Maandelijks Overzicht {selectedYear}</span>
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-64 sm:h-80 lg:h-96">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={chartData}
+                    margin={{
+                      top: 10,
+                      right: isMobile ? 5 : 30,
+                      left: isMobile ? 5 : 20,
+                      bottom: 5
                     }}
-                  />
-                  <Legend />
-                  <Bar dataKey="omzet" fill="#22C55E" name="Omzet" />
-                  <Bar dataKey="kosten" fill="#EF4444" name="Kosten" />
-                  <Bar dataKey="winst" fill="#3B82F6" name="Winst" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+                  >
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                    <XAxis
+                      dataKey="month"
+                      fontSize={responsive.fontSize(12, 10)}
+                      tick={{ fontSize: responsive.fontSize(12, 10) }}
+                    />
+                    <YAxis
+                      tickFormatter={formatCurrency}
+                      fontSize={responsive.fontSize(12, 10)}
+                      width={isMobile ? 50 : 80}
+                    />
+                    <Tooltip
+                      formatter={(value: number) => formatCurrency(value)}
+                      labelFormatter={(label) => {
+                        const monthData = chartData.find(d => d.month === label);
+                        return monthData?.fullMonth || label;
+                      }}
+                      contentStyle={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        fontSize: isMobile ? '12px' : '14px'
+                      }}
+                    />
+                    <Legend
+                      wrapperStyle={{ fontSize: isMobile ? '12px' : '14px' }}
+                    />
+                    <Bar dataKey="omzet" fill="#22C55E" name="Omzet" radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="kosten" fill="#EF4444" name="Kosten" radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="winst" fill="#3B82F6" name="Winst" radius={[2, 2, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
       {/* Line Chart for Trends */}
       <motion.div
@@ -407,92 +453,103 @@ export default function AnalyticsPage() {
         </Card>
       </motion.div>
 
-      {/* Year Summary */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.4 }}
-      >
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Euro className="h-5 w-5" />
-                Jaar Samenvatting {selectedYear}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Totale Omzet:</span>
-                  <span className="font-bold text-green-600 text-xl">
-                    {formatCurrency(totalYearData.totalOmzet)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Totale Kosten:</span>
-                  <span className="font-bold text-red-600 text-xl">
-                    {formatCurrency(totalYearData.totalKosten)}
-                  </span>
-                </div>
-                <div className="border-t pt-4">
+        {/* Enhanced Year Summary with responsive layout */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+        >
+          <ResponsiveGrid cols={{ default: 1, md: 2 }} gap="md">
+            <Card className="hover:shadow-md transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-sm sm:text-base lg:text-lg">
+                  <Euro className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+                  <span className="truncate">Jaar Samenvatting {selectedYear}</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3 sm:space-y-4">
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-900 font-medium">Totale Winst:</span>
-                    <span className={`font-bold text-2xl ${totalYearData.totalWinst >= 0 ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                      {formatCurrency(totalYearData.totalWinst)}
+                    <span className="text-gray-600 text-sm sm:text-base">Totale Omzet:</span>
+                    <span className="font-bold text-green-600 text-lg sm:text-xl truncate">
+                      {formatCurrency(totalYearData.totalOmzet)}
                     </span>
                   </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 text-sm sm:text-base">Totale Kosten:</span>
+                    <span className="font-bold text-red-600 text-lg sm:text-xl truncate">
+                      {formatCurrency(totalYearData.totalKosten)}
+                    </span>
+                  </div>
+                  <div className="border-t pt-3 sm:pt-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-900 font-medium text-sm sm:text-base">Totale Winst:</span>
+                      <span className={`font-bold text-xl sm:text-2xl truncate ${totalYearData.totalWinst >= 0 ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                        {formatCurrency(totalYearData.totalWinst)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-xs sm:text-sm text-gray-600">
+                    Gemiddelde maandelijkse winst: {formatCurrency(totalYearData.totalWinst / 12)}
+                  </div>
                 </div>
-                <div className="text-sm text-gray-600">
-                  Gemiddelde maandelijkse winst: {formatCurrency(totalYearData.totalWinst / 12)}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <PieChartIcon className="h-5 w-5" />
-                Omzet vs Kosten Verdeling
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={[
-                        { name: 'Omzet', value: totalYearData.totalOmzet },
-                        { name: 'Kosten', value: totalYearData.totalKosten }
-                      ]}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={(props: any) => `${props.name}: ${formatCurrency(props.value as number)}`}
-                    >
-                      {[
-                        { name: 'Omzet', value: totalYearData.totalOmzet },
-                        { name: 'Kosten', value: totalYearData.totalKosten }
-                      ].map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              {totalYearData.totalOmzet > 0 && (
-                <div className="mt-4 text-center text-sm text-gray-600">
-                  Winstmarge: {formatPercentage((totalYearData.totalWinst / totalYearData.totalOmzet) * 100)}
+            <Card className="hover:shadow-md transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-sm sm:text-base lg:text-lg">
+                  <PieChartIcon className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+                  <span className="truncate">
+                    <span className="hidden sm:inline">Omzet vs Kosten Verdeling</span>
+                    <span className="sm:hidden">Verdeling</span>
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-48 sm:h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Omzet', value: totalYearData.totalOmzet },
+                          { name: 'Kosten', value: totalYearData.totalKosten }
+                        ]}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={isMobile ? 60 : 80}
+                        fill="#8884d8"
+                        dataKey="value"
+                        label={isMobile ? false : (props: any) => `${props.name}: ${formatCurrency(props.value as number)}`}
+                      >
+                        {[
+                          { name: 'Omzet', value: totalYearData.totalOmzet },
+                          { name: 'Kosten', value: totalYearData.totalKosten }
+                        ].map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number) => formatCurrency(value)}
+                        contentStyle={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '8px',
+                          fontSize: isMobile ? '12px' : '14px'
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                {totalYearData.totalOmzet > 0 && (
+                  <div className="mt-3 sm:mt-4 text-center text-xs sm:text-sm text-gray-600">
+                    Winstmarge: {formatPercentage((totalYearData.totalWinst / totalYearData.totalOmzet) * 100)}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </ResponsiveGrid>
       </motion.div>
 
       {/* Yearly Comparison */}
@@ -682,6 +739,7 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
       </motion.div>
-    </div>
+      </div>
+    </UIResponsiveContainer>
   );
 }

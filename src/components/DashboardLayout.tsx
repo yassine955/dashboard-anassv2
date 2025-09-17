@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Avatar } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import {
   Users,
@@ -28,14 +29,21 @@ interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
-const navigation = [
+interface NavigationItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  isNew?: boolean;
+}
+
+const navigation: NavigationItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'Klanten', href: '/dashboard/clients', icon: Users },
   { name: 'Producten', href: '/dashboard/products', icon: Package },
   { name: 'Facturen', href: '/dashboard/invoices', icon: FileText },
   { name: 'Betalingen', href: '/dashboard/payments', icon: CreditCard },
-  { name: 'BTW Beheer', href: '/dashboard/btw', icon: Calculator },
-  { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
+  { name: 'BTW Beheer', href: '/dashboard/btw', icon: Calculator, isNew: true },
+  { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, isNew: true },
   { name: 'Updates & Info', href: '/dashboard/info', icon: Info },
   { name: 'Instellingen', href: '/dashboard/settings', icon: Settings },
 ];
@@ -95,7 +103,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   key={item.name}
                   variant={isActive ? "default" : "ghost"}
                   className={cn(
-                    "w-full justify-start h-12",
+                    "w-full justify-start h-12 relative",
                     isActive ? "bg-primary text-primary-foreground" : "text-gray-700 hover:bg-gray-100"
                   )}
                   onClick={() => {
@@ -104,7 +112,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   }}
                 >
                   <item.icon className="mr-3 h-5 w-5" />
-                  {item.name}
+                  <span className="flex-1 text-left">{item.name}</span>
+                  {item.isNew && (
+                    <Badge className="ml-2 bg-green-100 text-green-800 text-xs px-2 py-1 font-medium">
+                      NIEUW
+                    </Badge>
+                  )}
                 </Button>
               );
             })}

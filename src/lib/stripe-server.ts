@@ -23,7 +23,8 @@ export async function createPaymentLink({
     invoiceId,
     clientId,
     stripeSecretKey,
-    stripePublishableKey
+    stripePublishableKey,
+    stripeAccountId
 }: {
     amount: number;
     currency?: string;
@@ -33,6 +34,7 @@ export async function createPaymentLink({
     clientId: string;
     stripeSecretKey?: string;
     stripePublishableKey?: string;
+    stripeAccountId?: string;
 }) {
     // Use user-specific Stripe instance or fallback to global
     const stripeInstance = stripeSecretKey ? createStripeInstance(stripeSecretKey) : stripe;
@@ -41,7 +43,7 @@ export async function createPaymentLink({
         throw new Error("No Stripe configuration available");
     }
 
-    return stripeInstance.paymentLinks.create({
+    const paymentLinkParams: any = {
         line_items: [
             {
                 price_data: {
@@ -69,7 +71,15 @@ export async function createPaymentLink({
         allow_promotion_codes: true,
         billing_address_collection: "auto",
         payment_method_types: ["card", "ideal", "sepa_debit"],
-    })
+    };
+
+    // Add Stripe Connect account if provided
+    const requestOptions: any = {};
+    if (stripeAccountId) {
+        requestOptions.stripeAccount = stripeAccountId;
+    }
+
+    return stripeInstance.paymentLinks.create(paymentLinkParams, requestOptions)
 }
 
 // Create a checkout session for more control
@@ -83,7 +93,8 @@ export async function createCheckoutSession({
     successUrl,
     cancelUrl,
     stripeSecretKey,
-    stripePublishableKey
+    stripePublishableKey,
+    stripeAccountId
 }: {
     amount: number;
     currency?: string;
@@ -95,6 +106,7 @@ export async function createCheckoutSession({
     cancelUrl?: string;
     stripeSecretKey?: string;
     stripePublishableKey?: string;
+    stripeAccountId?: string;
 }) {
     // Use user-specific Stripe instance or fallback to global
     const stripeInstance = stripeSecretKey ? createStripeInstance(stripeSecretKey) : stripe;
@@ -103,7 +115,7 @@ export async function createCheckoutSession({
         throw new Error("No Stripe configuration available");
     }
 
-    return stripeInstance.checkout.sessions.create({
+    const sessionParams: any = {
         payment_method_types: ["card", "ideal", "sepa_debit"],
         line_items: [
             {
@@ -128,5 +140,13 @@ export async function createCheckoutSession({
         cancel_url: cancelUrl || `${process.env.NEXT_PUBLIC_APP_URL}/payment-success?payment=cancelled&invoice=${invoiceId}`,
         billing_address_collection: "auto",
         allow_promotion_codes: true,
-    })
+    };
+
+    // Add Stripe Connect account if provided
+    const requestOptions: any = {};
+    if (stripeAccountId) {
+        requestOptions.stripeAccount = stripeAccountId;
+    }
+
+    return stripeInstance.checkout.sessions.create(sessionParams, requestOptions)
 }

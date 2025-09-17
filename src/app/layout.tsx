@@ -8,8 +8,27 @@ import { Toaster } from "sonner";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Adobe Editor Dashboard",
-  description: "Client & Invoice Management Dashboard for Adobe Editors",
+  title: "QuickInvoice - Professional Invoicing Made Simple",
+  description: "The ultimate invoicing solution for freelancers and small businesses. Create professional invoices, manage clients, track payments, and get paid faster with integrated Stripe and ING Bank payment processing.",
+  keywords: ["invoicing", "freelancer", "small business", "payments", "stripe", "ing bank", "invoice management", "client management"],
+  authors: [{ name: "QuickInvoice Team" }],
+  robots: "index, follow",
+  openGraph: {
+    title: "QuickInvoice - Professional Invoicing Made Simple",
+    description: "Create professional invoices, manage clients, and get paid faster with integrated payment processing.",
+    type: "website",
+    locale: "nl_NL",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "QuickInvoice - Professional Invoicing Made Simple",
+    description: "Create professional invoices, manage clients, and get paid faster.",
+  },
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

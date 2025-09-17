@@ -26,10 +26,17 @@ export interface User {
   };
   paymentSettings?: {
     stripe?: {
-      publishableKey: string;
-      secretKey: string;
+      // Stripe Connect fields
       accountId?: string;
+      accessToken?: string;
+      refreshToken?: string;
+      publishableKey?: string;
       isActive: boolean;
+      connectedAt?: string;
+      disconnectedAt?: string;
+      // Legacy manual API key fields (for backward compatibility)
+      manualPublishableKey?: string;
+      manualSecretKey?: string;
     };
     ing?: {
       clientId: string;

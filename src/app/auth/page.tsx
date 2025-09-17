@@ -52,7 +52,7 @@ export default function AuthPage() {
             <Chrome className="h-8 w-8" />
           </div>
           <CardTitle className="text-2xl font-bold">
-            Adobe Editor Dashboard
+            QuickInvoice
           </CardTitle>
           <CardDescription>
             Sign in to manage your clients, products, and invoices

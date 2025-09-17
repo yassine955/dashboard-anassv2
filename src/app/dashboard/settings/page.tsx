@@ -16,6 +16,7 @@ import {
 import { Settings, User, Building, CreditCard, Mail, Save, Eye, EyeOff, CheckCircle, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
+import { Avatar } from '@/components/ui/avatar';
 
 export default function SettingsPage() {
   const { userProfile, updateUserProfile, currentUser } = useAuth();
@@ -49,8 +50,8 @@ export default function SettingsPage() {
 
   // Payment Settings State
   const [stripeSettings, setStripeSettings] = useState({
-    publishableKey: userProfile?.paymentSettings?.stripe?.publishableKey || '',
-    secretKey: userProfile?.paymentSettings?.stripe?.secretKey || '',
+    publishableKey: userProfile?.paymentSettings?.stripe?.manualPublishableKey || '',
+    secretKey: userProfile?.paymentSettings?.stripe?.manualSecretKey || '',
     accountId: userProfile?.paymentSettings?.stripe?.accountId || '',
     isActive: userProfile?.paymentSettings?.stripe?.isActive || false
   });
@@ -92,6 +93,68 @@ export default function SettingsPage() {
     }
   };
 
+  const handleConnectStripe = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/stripe-connect/authorize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: currentUser?.uid,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate Stripe authorization URL');
+      }
+
+      const { authorizeUrl } = await response.json();
+
+      // Redirect to Stripe Connect OAuth
+      window.location.href = authorizeUrl;
+    } catch (error: any) {
+      toast.error(error.message || 'Er is een fout opgetreden bij het verbinden met Stripe.');
+      console.error('Error connecting to Stripe:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDisconnectStripe = async () => {
+    if (!confirm('Weet je zeker dat je je Stripe account wilt ontkoppelen?')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch('/api/stripe-connect/disconnect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: currentUser?.uid,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to disconnect Stripe account');
+      }
+
+      toast.success('Stripe account succesvol ontkoppeld!');
+
+      // Refresh user profile to update UI
+      window.location.reload();
+    } catch (error: any) {
+      toast.error(error.message || 'Er is een fout opgetreden bij het ontkoppelen van Stripe.');
+      console.error('Error disconnecting Stripe:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSaveStripeSettings = async () => {
     setLoading(true);
     try {
@@ -114,7 +177,12 @@ export default function SettingsPage() {
       await updateUserProfile({
         paymentSettings: {
           ...userProfile?.paymentSettings,
-          stripe: stripeSettings
+          stripe: {
+            ...userProfile?.paymentSettings?.stripe,
+            manualPublishableKey: stripeSettings.publishableKey,
+            manualSecretKey: stripeSettings.secretKey,
+            isActive: stripeSettings.isActive,
+          }
         }
       });
 
@@ -202,9 +270,7 @@ export default function SettingsPage() {
               <div>
                 <label className="block text-sm font-medium mb-1">Profielfoto</label>
                 <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-lg font-medium">
-                    {currentUser?.displayName?.charAt(0) || 'U'}
-                  </div>
+                  <Avatar src={currentUser?.photoURL || ""} alt={currentUser?.displayName || "User"} fallback={currentUser?.displayName || "U"} size="md" />
                   <div>
                     <p className="text-sm">Je profielfoto wordt automatisch gesynchroniseerd met je Google account</p>
                   </div>
@@ -423,20 +489,49 @@ export default function SettingsPage() {
                         )}
                       </h4>
                       <p className="text-sm text-gray-500">Online betalingen accepteren</p>
-                      {userProfile?.paymentSettings?.stripe?.publishableKey && (
+                      {userProfile?.paymentSettings?.stripe?.accountId && (
                         <p className="text-xs text-gray-400 mt-1">
-                          Geconfigureerd: pk_***{userProfile.paymentSettings.stripe.publishableKey.slice(-4)}
+                          Account: {userProfile.paymentSettings.stripe.accountId.slice(0, 12)}***
+                        </p>
+                      )}
+                      {userProfile?.paymentSettings?.stripe?.connectedAt && (
+                        <p className="text-xs text-green-600 mt-1">
+                          Verbonden via Stripe Connect
                         </p>
                       )}
                     </div>
                   </div>
-                  <Button
-                    variant={userProfile?.paymentSettings?.stripe?.isActive ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setIsStripeDialogOpen(true)}
-                  >
-                    {userProfile?.paymentSettings?.stripe?.isActive ? 'Bewerken' : 'Configureren'}
-                  </Button>
+                  <div className="flex gap-2">
+                    {userProfile?.paymentSettings?.stripe?.isActive ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDisconnectStripe}
+                        disabled={loading}
+                      >
+                        Ontkoppelen
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={handleConnectStripe}
+                        disabled={loading}
+                        className="bg-stripe hover:bg-stripe/90"
+                        style={{ backgroundColor: '#635bff' }}
+                      >
+                        Verbinden met Stripe
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsStripeDialogOpen(true)}
+                      className="text-xs"
+                    >
+                      Geavanceerd
+                    </Button>
+                  </div>
                 </div>
               </div>
               <div className="p-4 border rounded-lg">

@@ -138,7 +138,7 @@ export default function DashboardPage() {
             Welkom terug, {userProfile?.displayName?.split(' ')[0] || 'User'}!
           </h1>
           <p className="text-gray-600">
-            Hier is een overzicht van jouw Adobe Editor dashboard.
+            Hier is een overzicht van jouw QuickInvoice dashboard.
           </p>
         </div>
       </motion.div>

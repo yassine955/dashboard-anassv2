@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Avatar } from '@/components/ui/avatar';
+import Image from 'next/image';
 import {
   Users,
   Package,
@@ -59,7 +60,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="flex items-center justify-between h-16 px-6 border-b">
-            <h1 className="text-xl font-bold text-primary">Adobe Dashboard</h1>
+            <div className="flex items-center space-x-3">
+              <Image
+                src="/dashboard.png"
+                alt="QuickInvoice Logo"
+                width={180}
+                height={40}
+                className="h-8 w-auto"
+                priority
+              />
+            </div>
             <Button
               variant="ghost"
               size="icon"

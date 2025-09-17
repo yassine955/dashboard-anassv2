@@ -59,9 +59,28 @@ export async function POST(request: NextRequest) {
     const userData = userDoc.data();
     const stripeSettings = userData.paymentSettings?.stripe;
 
-    if (!stripeSettings?.isActive || !stripeSettings?.secretKey || !stripeSettings?.publishableKey) {
+    if (!stripeSettings?.isActive) {
       return NextResponse.json(
         { error: "Stripe is not configured for this user. Please configure Stripe in your settings." },
+        { status: 400 }
+      );
+    }
+
+    // Determine which Stripe credentials to use
+    let stripeSecretKey, stripePublishableKey, stripeAccountId;
+
+    if (stripeSettings.accessToken && stripeSettings.accountId) {
+      // Use Stripe Connect
+      stripeSecretKey = process.env.STRIPE_SECRET_KEY; // Platform secret key
+      stripePublishableKey = stripeSettings.publishableKey;
+      stripeAccountId = stripeSettings.accountId;
+    } else if (stripeSettings.manualSecretKey && stripeSettings.manualPublishableKey) {
+      // Use manual API keys (legacy/developer mode)
+      stripeSecretKey = stripeSettings.manualSecretKey;
+      stripePublishableKey = stripeSettings.manualPublishableKey;
+    } else {
+      return NextResponse.json(
+        { error: "No valid Stripe configuration found. Please connect your Stripe account." },
         { status: 400 }
       );
     }
@@ -76,8 +95,9 @@ export async function POST(request: NextRequest) {
         metadata,
         invoiceId,
         clientId,
-        stripeSecretKey: stripeSettings.secretKey,
-        stripePublishableKey: stripeSettings.publishableKey,
+        stripeSecretKey,
+        stripePublishableKey,
+        stripeAccountId,
       });
     } else {
       // Use payment link (simpler)
@@ -87,8 +107,9 @@ export async function POST(request: NextRequest) {
         metadata,
         invoiceId,
         clientId,
-        stripeSecretKey: stripeSettings.secretKey,
-        stripePublishableKey: stripeSettings.publishableKey,
+        stripeSecretKey,
+        stripePublishableKey,
+        stripeAccountId,
       });
     }
 

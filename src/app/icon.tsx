@@ -11,29 +11,35 @@ export const size = {
 export const contentType = 'image/png'
 
 // Image generation
-export default function Icon() {
+export default async function Icon() {
+    // Fetch the favicon image
+    const faviconResponse = await fetch(new URL('/favicon.png', process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'))
+    const faviconBuffer = await faviconResponse.arrayBuffer()
+    const base64 = Buffer.from(faviconBuffer).toString('base64')
+    const dataUrl = `data:image/png;base64,${base64}`
+
     return new ImageResponse(
         (
-            // ImageResponse JSX element
             <div
                 style={{
-                    fontSize: 24,
-                    background: 'linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%)',
                     width: '100%',
                     height: '100%',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: 'white',
-                    borderRadius: '6px',
-                    fontWeight: 'bold',
-                    fontFamily: 'system-ui, sans-serif',
                 }}
             >
-                QI
+                <img
+                    src={dataUrl}
+                    alt="Favicon"
+                    style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                    }}
+                />
             </div>
         ),
-        // ImageResponse options
         {
             ...size,
         }

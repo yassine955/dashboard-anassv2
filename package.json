@@ -6,7 +6,13 @@
     "dev": "kill-port 3000 && next dev",
     "build": "next build",
     "start": "kill-port 3000 && next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "lint:fix": "next lint --fix",
+    "type-check": "tsc --noEmit",
+    "build:analyze": "ANALYZE=true npm run build",
+    "production:build": "NODE_ENV=production npm run lint && npm run type-check && npm run build",
+    "production:start": "NODE_ENV=production npm start",
+    "clean": "rm -rf .next"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

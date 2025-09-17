@@ -45,11 +45,43 @@ export class AudioGenerator {
   }
 
   async generateSuccessSound(): Promise<void> {
-    // Pleasant ascending chime (C -> E -> G)
+    // Professional success chime with harmonies
     try {
-      await this.generateTone(523, 0.1, 'sine', 0.2); // C5
-      await this.generateTone(659, 0.1, 'sine', 0.2); // E5
-      await this.generateTone(784, 0.15, 'sine', 0.25); // G5
+      const audioContext = await this.ensureAudioContext();
+      if (!audioContext) return;
+
+      // Create a more complex success sound with harmonies
+      const playChord = async (frequencies: number[], duration: number, volume: number) => {
+        const oscillators = frequencies.map(() => audioContext.createOscillator());
+        const gainNodes = frequencies.map(() => audioContext.createGain());
+
+        oscillators.forEach((osc, i) => {
+          osc.connect(gainNodes[i]);
+          gainNodes[i].connect(audioContext.destination);
+
+          osc.frequency.setValueAtTime(frequencies[i], audioContext.currentTime);
+          osc.type = 'sine';
+
+          // Smooth envelope
+          gainNodes[i].gain.setValueAtTime(0, audioContext.currentTime);
+          gainNodes[i].gain.linearRampToValueAtTime(volume / frequencies.length, audioContext.currentTime + 0.01);
+          gainNodes[i].gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+
+          osc.start(audioContext.currentTime);
+          osc.stop(audioContext.currentTime + duration);
+        });
+
+        return new Promise<void>((resolve) => {
+          oscillators[0].onended = () => resolve();
+        });
+      };
+
+      // C major triad progression
+      await playChord([523, 659], 0.1, 0.15); // C5 + E5
+      await new Promise(resolve => setTimeout(resolve, 50));
+      await playChord([659, 784], 0.1, 0.15); // E5 + G5
+      await new Promise(resolve => setTimeout(resolve, 50));
+      await playChord([523, 659, 784], 0.2, 0.2); // Full C major chord
     } catch (error) {
       console.debug('Audio generation failed:', error);
     }
@@ -110,13 +142,40 @@ export class AudioGenerator {
   }
 
   async generatePaymentSound(): Promise<void> {
-    // Success sound followed by a celebration chime
+    // Celebration sound with rising notes and harmony
     try {
+      const audioContext = await this.ensureAudioContext();
+      if (!audioContext) return;
+
+      // Create a celebration sequence
+      const playNote = (frequency: number, duration: number, delay: number = 0) => {
+        setTimeout(async () => {
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+
+          oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+          oscillator.type = 'sine';
+
+          gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+          gainNode.gain.linearRampToValueAtTime(0.2, audioContext.currentTime + 0.01);
+          gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+
+          oscillator.start(audioContext.currentTime);
+          oscillator.stop(audioContext.currentTime + duration);
+        }, delay);
+      };
+
+      // Success chord progression with celebration
       await this.generateSuccessSound();
-      // Small delay
-      setTimeout(async () => {
-        await this.generateTone(880, 0.1, 'sine', 0.15); // A5 celebration note
-      }, 200);
+
+      // Add celebration notes
+      playNote(1047, 0.1, 300); // C6 high note
+      playNote(1175, 0.1, 400); // D6
+      playNote(1319, 0.15, 500); // E6 final celebration note
+
     } catch (error) {
       console.debug('Audio generation failed:', error);
     }

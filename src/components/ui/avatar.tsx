@@ -1,5 +1,6 @@
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
+import Image from "next/image"
 
 import { cn } from "@/lib/utils"
 
@@ -32,9 +33,11 @@ const Avatar = React.forwardRef<HTMLDivElement, AvatarProps>(
         return (
             <div ref={ref} className={cn(avatarVariants({ size, className }))} {...props}>
                 {src ? (
-                    <img
+                    <Image
                         src={src}
-                        alt={alt}
+                        alt={alt || "Avatar"}
+                        width={size === "sm" ? 32 : size === "lg" ? 48 : 40}
+                        height={size === "sm" ? 32 : size === "lg" ? 48 : 40}
                         className="aspect-square h-full w-full"
                     />
                 ) : (

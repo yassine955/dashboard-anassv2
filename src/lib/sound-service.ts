@@ -157,8 +157,41 @@ class SoundService {
     return soundPreference !== 'false';
   }
 
+  // Save user preferences
+  saveUserPreferences(enabled: boolean, volume: number = 0.5) {
+    if (typeof window === 'undefined') return;
+
+    localStorage.setItem('soundEnabled', enabled.toString());
+    localStorage.setItem('soundVolume', volume.toString());
+
+    this.setEnabled(enabled);
+    this.setVolume(volume);
+  }
+
+  // Load user preferences
+  loadUserPreferences() {
+    if (typeof window === 'undefined') return;
+
+    const savedVolume = localStorage.getItem('soundVolume');
+    if (savedVolume) {
+      this.setVolume(parseFloat(savedVolume));
+    }
+
+    const soundEnabled = this.checkUserPreferences();
+    this.setEnabled(soundEnabled);
+  }
+
+  // Get current settings for UI
+  getSettings() {
+    return {
+      enabled: this.enabled,
+      volume: this.volume,
+      useGeneratedAudio: this.useGeneratedAudio
+    };
+  }
+
   async init() {
-    this.enabled = this.checkUserPreferences();
+    this.loadUserPreferences();
 
     // Initialize audio context on first user interaction
     if (typeof window !== 'undefined') {

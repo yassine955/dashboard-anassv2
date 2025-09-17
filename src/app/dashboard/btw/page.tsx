@@ -835,26 +835,25 @@ export default function BTWPage() {
                   {closedQuarters.map((quarter) => (
                     <div
                       key={quarter.id}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg hover:bg-gray-50 gap-4"
                     >
-                      <div className="flex items-center gap-4">
-                        <div>
-                          <h4 className="font-semibold">Q{quarter.quarter} {quarter.year}</h4>
-                          <p className="text-sm text-gray-600">
-                            Omzet: €{quarter.totalRevenue.toFixed(2)} • BTW: €{quarter.totalVATCharged.toFixed(2)}
-                          </p>
-                        </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold">Q{quarter.quarter} {quarter.year}</h4>
+                        <p className="text-sm text-gray-600 mt-1 sm:mt-0">
+                          Omzet: €{quarter.totalRevenue.toFixed(2)} • BTW: €{quarter.totalVATCharged.toFixed(2)}
+                        </p>
                       </div>
-                      <div className="flex items-center gap-4">
+                      <div className="flex flex-wrap items-center gap-3 sm:gap-4">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleViewQuarterDetails(quarter)}
+                          className="w-full sm:w-auto"
                         >
                           <Eye className="h-4 w-4 mr-2" />
                           Details
                         </Button>
-                        <div className="text-right">
+                        <div className="text-right min-w-[120px]">
                           <p className={`font-semibold ${quarter.totalVATOwed >= 0 ? 'text-red-600' : 'text-green-600'
                             }`}>
                             €{quarter.totalVATOwed.toFixed(2)}

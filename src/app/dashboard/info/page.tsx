@@ -203,7 +203,7 @@ export default function InfoPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <div className="flex items-start justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
               <Info className="h-8 w-8 text-blue-600" />
@@ -213,7 +213,7 @@ export default function InfoPage() {
               Overzicht van de nieuwste verbeteringen en bug fixes in je Adobe Editor Dashboard
             </p>
           </div>
-          <div className="text-right">
+          <div className="text-right sm:text-right">
             <Badge variant="outline" className="text-sm">
               Versie 0.2.0
             </Badge>

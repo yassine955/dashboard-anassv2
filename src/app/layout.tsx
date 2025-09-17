@@ -13,6 +13,11 @@ export const metadata: Metadata = {
   keywords: ["invoicing", "freelancer", "small business", "payments", "stripe", "ing bank", "invoice management", "client management"],
   authors: [{ name: "QuickInvoice Team" }],
   robots: "index, follow",
+  icons: {
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
+  },
   openGraph: {
     title: "QuickInvoice - Professional Invoicing Made Simple",
     description: "Create professional invoices, manage clients, and get paid faster with integrated payment processing.",

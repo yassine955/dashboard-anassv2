@@ -16,7 +16,9 @@ import {
   LogOut,
   Menu,
   X,
-  Home
+  Home,
+  Calculator,
+  BarChart3
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -31,6 +33,8 @@ const navigation = [
   { name: 'Producten', href: '/dashboard/products', icon: Package },
   { name: 'Facturen', href: '/dashboard/invoices', icon: FileText },
   { name: 'Betalingen', href: '/dashboard/payments', icon: CreditCard },
+  { name: 'BTW Beheer', href: '/dashboard/btw', icon: Calculator },
+  { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
   { name: 'Instellingen', href: '/dashboard/settings', icon: Settings },
 ];
 

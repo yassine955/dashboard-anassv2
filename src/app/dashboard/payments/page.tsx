@@ -223,6 +223,18 @@ export default function PaymentsPage() {
     }
   };
 
+  const markAsOverdue = async (invoice: Invoice) => {
+    try {
+      await invoiceService.updateInvoice(invoice.id, {
+        status: 'overdue'
+      }, currentUser?.uid);
+      toast.success('Factuur gemarkeerd als verlopen!');
+    } catch (error) {
+      toast.error('Er is een fout opgetreden bij het bijwerken van de factuur.');
+      console.error('Error updating invoice:', error);
+    }
+  };
+
   const openEmailDialog = (invoice: Invoice) => {
     setSelectedInvoice(invoice);
     setCustomMessage('');
@@ -540,9 +552,21 @@ export default function PaymentsPage() {
                                   size="sm"
                                   onClick={() => markAsPaid(invoice)}
                                   title="Markeer als betaald"
+                                  className="text-green-600 hover:bg-green-50"
                                 >
                                   <CheckCircle className="h-4 w-4" />
                                 </Button>
+                                {invoice.status !== 'overdue' && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => markAsOverdue(invoice)}
+                                    title="Markeer als verlopen"
+                                    className="text-red-600 hover:bg-red-50"
+                                  >
+                                    <AlertCircle className="h-4 w-4" />
+                                  </Button>
+                                )}
                               </>
                             )}
                           </div>

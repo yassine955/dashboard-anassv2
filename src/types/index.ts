@@ -128,3 +128,64 @@ export interface PaymentSettings {
     pass: string;
   };
 }
+
+// BTW (VAT) and Financial Analytics Types
+export interface BTWQuarter {
+  id: string;
+  userId: string;
+  year: number;
+  quarter: number; // 1-4
+  totalRevenue: number;
+  totalVATCharged: number; // BTW charged to clients
+  totalVATOwed: number; // BTW owed to tax authority
+  expenses: BTWExpense[];
+  status: 'draft' | 'filed' | 'paid';
+  dueDate: Timestamp;
+  filedDate?: Timestamp;
+  paidDate?: Timestamp;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface BTWExpense {
+  id: string;
+  description: string;
+  amount: number;
+  vatAmount: number;
+  vatRate: number;
+  category: 'equipment' | 'software' | 'office' | 'travel' | 'training' | 'other';
+  date: Timestamp;
+  receiptUrl?: string;
+}
+
+export interface MonthlyFinancials {
+  id: string;
+  userId: string;
+  year: number;
+  month: number; // 1-12
+  omzet: number; // Revenue
+  kosten: number; // Costs/Expenses
+  winst: number; // Profit (omzet - kosten)
+  vatCharged: number; // BTW charged on revenue
+  vatPaid: number; // BTW paid on expenses
+  invoiceCount: number;
+  expenseCount: number;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface BusinessExpense {
+  id: string;
+  userId: string;
+  description: string;
+  amount: number;
+  vatAmount: number;
+  vatRate: number;
+  category: 'equipment' | 'software' | 'office' | 'travel' | 'training' | 'other';
+  date: Timestamp;
+  receiptUrl?: string;
+  isRecurring: boolean;
+  recurringFrequency?: 'monthly' | 'quarterly' | 'yearly';
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}

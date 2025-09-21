@@ -42,7 +42,6 @@ const navigation: NavigationItem[] = [
   { name: 'Klanten', href: '/dashboard/clients', icon: Users },
   { name: 'Producten', href: '/dashboard/products', icon: Package },
   { name: 'Facturen', href: '/dashboard/invoices', icon: FileText },
-  { name: 'Betalingen', href: '/dashboard/payments', icon: CreditCard },
   { name: 'BTW Beheer', href: '/dashboard/btw', icon: Calculator, isNew: true },
   { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, isNew: true },
   { name: 'Updates & Info', href: '/dashboard/info', icon: Info },

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail, generateInvoiceEmailHTML, generateEmailSubject } from '@/lib/email';
+import { generateInvoicePDF } from '@/lib/pdf';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { Invoice, Client, User } from '@/types';
@@ -74,10 +75,46 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Generate PDF attachment for invoice emails
+    let attachments = undefined;
+    if (invoiceId && clientId) {
+      try {
+        // Get the data again (we already validated it exists above)
+        const [invoiceDoc, clientDoc, userDoc] = await Promise.all([
+          getDoc(doc(db, 'invoices', invoiceId)),
+          getDoc(doc(db, 'clients', clientId)),
+          userId ? getDoc(doc(db, 'users', userId)) : Promise.resolve(null)
+        ]);
+
+        const invoice = { id: invoiceDoc.id, ...invoiceDoc.data() } as Invoice;
+        const client = { id: clientDoc.id, ...clientDoc.data() } as Client;
+        const user = userDoc?.exists() ? { uid: userDoc.id, ...userDoc.data() } as User : undefined;
+
+        // Generate PDF only if user data is available
+        if (!user) {
+          console.warn('User data not available for PDF generation, skipping attachment');
+          return; // Skip PDF generation
+        }
+        const pdfBuffer = await generateInvoicePDF(invoice, client, user);
+
+        attachments = [{
+          filename: `Factuur-${invoice.invoiceNumber}.pdf`,
+          content: Buffer.from(pdfBuffer),
+          contentType: 'application/pdf'
+        }];
+
+        console.log(`Generated PDF attachment for invoice ${invoice.invoiceNumber}`);
+      } catch (pdfError) {
+        console.error('Error generating PDF attachment:', pdfError);
+        // Continue without attachment rather than failing the whole email
+      }
+    }
+
     const result = await sendEmail({
       to,
       subject: finalSubject || subject,
-      html: finalHtml
+      html: finalHtml,
+      attachments
     });
 
     return NextResponse.json({

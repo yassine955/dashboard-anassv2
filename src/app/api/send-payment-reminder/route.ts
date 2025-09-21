@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail, generatePaymentReminderHTML, generateEmailSubject } from '@/lib/email';
+import { generateInvoicePDF } from '@/lib/pdf';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { Invoice, Client, User } from '@/types';
@@ -66,10 +67,31 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Generate PDF attachment
+      let attachments = undefined;
+      try {
+        // Generate PDF only if user data is available
+        if (user) {
+          const pdfBuffer = await generateInvoicePDF(invoice, client, user);
+          attachments = [{
+            filename: `Factuur-${invoice.invoiceNumber}.pdf`,
+            content: Buffer.from(pdfBuffer),
+            contentType: 'application/pdf'
+          }];
+          console.log(`Generated PDF attachment for payment reminder ${invoice.invoiceNumber}`);
+        } else {
+          console.warn('User data not available for PDF generation, skipping attachment');
+        }
+      } catch (pdfError) {
+        console.error('Error generating PDF attachment for payment reminder:', pdfError);
+        // Continue without attachment rather than failing the whole email
+      }
+
       const result = await sendEmail({
         to,
         subject: emailSubject,
-        html: emailHTML
+        html: emailHTML,
+        attachments
       });
 
       return NextResponse.json({

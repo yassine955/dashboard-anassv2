@@ -15,6 +15,8 @@ import {
     serverTimestamp,
     DocumentData,
     QueryConstraint,
+    runTransaction,
+    setDoc,
 } from "firebase/firestore"
 import { db } from "./firebase"
 import { Client, Product, Invoice } from "@/types"
@@ -244,11 +246,47 @@ export const productService = {
 
 // ----------------- Invoice Services -----------------
 export const invoiceService = {
-    // Generate invoice number
-    generateInvoiceNumber(userId: string): string {
-        const year = new Date().getFullYear().toString().slice(-2)
-        const timestamp = Date.now().toString().slice(-6)
-        return `INV-${timestamp}-${year}`
+    // Generate sequential invoice number with AM prefix
+    async generateInvoiceNumber(userId: string): Promise<string> {
+        try {
+            // Use a transaction to ensure atomic counter increment
+            const result = await runTransaction(db, async (transaction) => {
+                const counterRef = doc(db, 'invoiceCounters', userId);
+                const counterDoc = await transaction.get(counterRef);
+
+                let nextNumber = 1;
+
+                if (counterDoc.exists()) {
+                    const data = counterDoc.data();
+                    nextNumber = (data.lastInvoiceNumber || 0) + 1;
+                } else {
+                    // Initialize counter for new user
+                    transaction.set(counterRef, {
+                        lastInvoiceNumber: 0,
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    });
+                }
+
+                // Update the counter
+                transaction.update(counterRef, {
+                    lastInvoiceNumber: nextNumber,
+                    updatedAt: serverTimestamp()
+                });
+
+                return nextNumber;
+            });
+
+            // Format the number with leading zeros (5 digits: 00001, 00002, etc.)
+            const formattedNumber = result.toString().padStart(5, '0');
+            return `AM${formattedNumber}`;
+
+        } catch (error) {
+            console.error('Error generating invoice number:', error);
+            // Fallback to timestamp-based numbering if transaction fails
+            const timestamp = Date.now().toString().slice(-6);
+            return `AM${timestamp}`;
+        }
     },
 
     async createInvoice(
@@ -258,7 +296,7 @@ export const invoiceService = {
             "id" | "userId" | "invoiceNumber" | "createdAt" | "updatedAt"
         >
     ): Promise<Invoice> {
-        const invoiceNumber = this.generateInvoiceNumber(userId)
+        const invoiceNumber = await this.generateInvoiceNumber(userId)
 
         const newInvoice = {
             ...invoiceData,
@@ -372,7 +410,7 @@ export const invoiceService = {
             throw new Error("Access denied: Invoice belongs to another user")
         }
 
-        const newInvoiceNumber = this.generateInvoiceNumber(originalInvoice.userId)
+        const newInvoiceNumber = await this.generateInvoiceNumber(originalInvoice.userId)
 
         // Create clean invoice data without id, client, and other computed fields
         const duplicatedInvoiceData: any = {

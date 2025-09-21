@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendEmail, generateInvoiceEmailHTML } from '@/lib/email';
+import { sendEmail, generateInvoiceEmailHTML, generateEmailSubject } from '@/lib/email';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { Invoice, Client } from '@/types';
+import { Invoice, Client, User } from '@/types';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,22 +13,26 @@ export async function POST(request: NextRequest) {
       customMessage,
       invoiceId,
       clientId,
+      userId,
       paymentLink
     } = await request.json();
 
     // If we have invoiceId and clientId, generate the email HTML
     let finalHtml = html;
+    let finalSubject = subject;
 
     if (invoiceId && clientId) {
       try {
-        // Get invoice and client data using client SDK (works in development)
-        const [invoiceDoc, clientDoc] = await Promise.all([
+        // Get invoice, client, and user data
+        const [invoiceDoc, clientDoc, userDoc] = await Promise.all([
           getDoc(doc(db, 'invoices', invoiceId)),
-          getDoc(doc(db, 'clients', clientId))
+          getDoc(doc(db, 'clients', clientId)),
+          userId ? getDoc(doc(db, 'users', userId)) : Promise.resolve(null)
         ]);
 
         const invoice = invoiceDoc.exists() ? { id: invoiceDoc.id, ...invoiceDoc.data() } as Invoice : null;
         const client = clientDoc.exists() ? { id: clientDoc.id, ...clientDoc.data() } as Client : null;
+        const user = userDoc?.exists() ? { uid: userDoc.id, ...userDoc.data() } as User : null;
 
         if (!invoice || !client) {
           return NextResponse.json(
@@ -37,15 +41,12 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        // Generate email HTML with payment link
-        finalHtml = await generateInvoiceEmailHTML(invoice, client, paymentLink);
+        // Generate email HTML and subject with custom templates
+        finalHtml = await generateInvoiceEmailHTML(invoice, client, user || undefined, paymentLink, customMessage);
 
-        // Add custom message if provided
-        if (customMessage) {
-          finalHtml = finalHtml.replace(
-            '<p>Hierbij ontvangt u de factuur voor de geleverde diensten.',
-            `<p>${customMessage}</p><p>Hierbij ontvangt u de factuur voor de geleverde diensten.`
-          );
+        // Generate subject if not provided
+        if (!finalSubject) {
+          finalSubject = generateEmailSubject('invoice', invoice, user || undefined);
         }
       } catch (error) {
         console.error('Error generating invoice email:', error);
@@ -75,13 +76,14 @@ export async function POST(request: NextRequest) {
 
     const result = await sendEmail({
       to,
-      subject,
+      subject: finalSubject || subject,
       html: finalHtml
     });
 
     return NextResponse.json({
       success: true,
-      messageId: result.messageId
+      messageId: result.messageId,
+      subject: finalSubject || subject
     });
   } catch (error) {
     console.error('Error sending email:', error);

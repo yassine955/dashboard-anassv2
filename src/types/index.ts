@@ -24,6 +24,18 @@ export interface User {
     invoiceTemplate: string;
     defaultPaymentTerms: number; // days
   };
+  emailTemplates?: {
+    invoiceEmail: {
+      subject: string;
+      content: string;
+      isCustom: boolean;
+    };
+    paymentReminder: {
+      subject: string;
+      content: string;
+      isCustom: boolean;
+    };
+  };
   paymentSettings?: {
     stripe?: {
       // Stripe Connect fields

@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Settings, User, Building, CreditCard, Mail, Save, Eye, EyeOff, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Settings, User, Building, CreditCard, Mail, Save, Eye, EyeOff, CheckCircle, AlertTriangle, FileText, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Avatar } from '@/components/ui/avatar';
@@ -30,6 +30,8 @@ export default function SettingsPage() {
   const [isPayPalDialogOpen, setIsPayPalDialogOpen] = useState(false);
   const [isMollieDialogOpen, setIsMollieDialogOpen] = useState(false);
   const [isTikkieDialogOpen, setIsTikkieDialogOpen] = useState(false);
+  const [isEmailTemplateDialogOpen, setIsEmailTemplateDialogOpen] = useState(false);
+  const [editingEmailTemplate, setEditingEmailTemplate] = useState<'invoice' | 'paymentReminder' | null>(null);
 
   // Business Info State
   const [businessInfo, setBusinessInfo] = useState({
@@ -87,6 +89,20 @@ export default function SettingsPage() {
     appToken: userProfile?.paymentSettings?.tikkie?.appToken || '',
     sandboxMode: userProfile?.paymentSettings?.tikkie?.sandboxMode || false,
     isActive: userProfile?.paymentSettings?.tikkie?.isActive || false
+  });
+
+  // Email Template State
+  const [emailTemplates, setEmailTemplates] = useState({
+    invoiceEmail: {
+      subject: userProfile?.emailTemplates?.invoiceEmail?.subject || '',
+      content: userProfile?.emailTemplates?.invoiceEmail?.content || '',
+      isCustom: userProfile?.emailTemplates?.invoiceEmail?.isCustom || false
+    },
+    paymentReminder: {
+      subject: userProfile?.emailTemplates?.paymentReminder?.subject || '',
+      content: userProfile?.emailTemplates?.paymentReminder?.content || '',
+      isCustom: userProfile?.emailTemplates?.paymentReminder?.isCustom || false
+    }
   });
 
   const handleSaveBusinessInfo = async () => {
@@ -345,6 +361,90 @@ export default function SettingsPage() {
     } catch (error) {
       toast.error('Er is een fout opgetreden bij het opslaan van Tikkie instellingen.');
       console.error('Error saving Tikkie settings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openEmailTemplateDialog = (templateType: 'invoice' | 'paymentReminder') => {
+    setEditingEmailTemplate(templateType);
+    setIsEmailTemplateDialogOpen(true);
+  };
+
+  const handleSaveEmailTemplate = async () => {
+    if (!editingEmailTemplate) return;
+
+    setLoading(true);
+    try {
+      const templateData = {
+        subject: editingEmailTemplate === 'invoice'
+          ? emailTemplates.invoiceEmail.subject
+          : emailTemplates.paymentReminder.subject,
+        content: editingEmailTemplate === 'invoice'
+          ? emailTemplates.invoiceEmail.content
+          : emailTemplates.paymentReminder.content,
+        isCustom: true
+      };
+
+      await updateUserProfile({
+        emailTemplates: {
+          invoiceEmail: editingEmailTemplate === 'invoice'
+            ? templateData
+            : userProfile?.emailTemplates?.invoiceEmail || { subject: '', content: '', isCustom: false },
+          paymentReminder: editingEmailTemplate === 'paymentReminder'
+            ? templateData
+            : userProfile?.emailTemplates?.paymentReminder || { subject: '', content: '', isCustom: false }
+        }
+      });
+
+      toast.success('Email template succesvol opgeslagen!');
+      setIsEmailTemplateDialogOpen(false);
+      setEditingEmailTemplate(null);
+    } catch (error) {
+      toast.error('Er is een fout opgetreden bij het opslaan van de email template.');
+      console.error('Error saving email template:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetEmailTemplate = async () => {
+    if (!editingEmailTemplate) return;
+
+    setLoading(true);
+    try {
+      const resetData = { subject: '', content: '', isCustom: false };
+
+      await updateUserProfile({
+        emailTemplates: {
+          invoiceEmail: editingEmailTemplate === 'invoice'
+            ? resetData
+            : userProfile?.emailTemplates?.invoiceEmail || resetData,
+          paymentReminder: editingEmailTemplate === 'paymentReminder'
+            ? resetData
+            : userProfile?.emailTemplates?.paymentReminder || resetData
+        }
+      });
+
+      // Reset local state
+      if (editingEmailTemplate === 'invoice') {
+        setEmailTemplates(prev => ({
+          ...prev,
+          invoiceEmail: { subject: '', content: '', isCustom: false }
+        }));
+      } else {
+        setEmailTemplates(prev => ({
+          ...prev,
+          paymentReminder: { subject: '', content: '', isCustom: false }
+        }));
+      }
+
+      toast.success('Email template gereset naar standaard!');
+      setIsEmailTemplateDialogOpen(false);
+      setEditingEmailTemplate(null);
+    } catch (error) {
+      toast.error('Er is een fout opgetreden bij het resetten van de email template.');
+      console.error('Error resetting email template:', error);
     } finally {
       setLoading(false);
     }
@@ -818,12 +918,34 @@ export default function SettingsPage() {
                 <h4 className="font-medium mb-2">Email Templates</h4>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between p-3 border rounded">
-                    <span className="text-sm">Factuur Verzenden</span>
-                    <Button variant="outline" size="sm">Bewerken</Button>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">Factuur Verzenden</span>
+                      <span className="text-xs text-gray-500">
+                        {userProfile?.emailTemplates?.invoiceEmail?.isCustom ? 'Aangepaste template' : 'Standaard template'}
+                      </span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openEmailTemplateDialog('invoice')}
+                    >
+                      Bewerken
+                    </Button>
                   </div>
                   <div className="flex items-center justify-between p-3 border rounded">
-                    <span className="text-sm">Betalingsherinnering</span>
-                    <Button variant="outline" size="sm">Bewerken</Button>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">Betalingsherinnering</span>
+                      <span className="text-xs text-gray-500">
+                        {userProfile?.emailTemplates?.paymentReminder?.isCustom ? 'Aangepaste template' : 'Standaard template'}
+                      </span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openEmailTemplateDialog('paymentReminder')}
+                    >
+                      Bewerken
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -1266,6 +1388,134 @@ export default function SettingsPage() {
               disabled={loading || !tikkieSettings.apiKey || !tikkieSettings.appToken}
             >
               {loading ? 'Opslaan...' : 'Opslaan'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Email Template Configuration Dialog */}
+      <Dialog open={isEmailTemplateDialogOpen} onOpenChange={setIsEmailTemplateDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center">
+              <FileText className="mr-2 h-5 w-5" />
+              {editingEmailTemplate === 'invoice' ? 'Factuur Email Template' : 'Betalingsherinnering Template'}
+            </DialogTitle>
+            <DialogDescription>
+              Pas je email template aan. Gebruik variabelen zoals {'{clientName}'}, {'{invoiceNumber}'}, {'{totalAmount}'}, enz.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6">
+            {/* Template Variables Info */}
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <h4 className="font-medium text-blue-800 mb-2">Beschikbare Variabelen</h4>
+              <div className="grid grid-cols-2 gap-4 text-sm text-blue-700">
+                <div>
+                  <p><code>{'{clientName}'}</code> - Volledige naam klant</p>
+                  <p><code>{'{clientFirstName}'}</code> - Voornaam klant</p>
+                  <p><code>{'{invoiceNumber}'}</code> - Factuurnummer</p>
+                  <p><code>{'{totalAmount}'}</code> - Totaalbedrag</p>
+                </div>
+                <div>
+                  <p><code>{'{invoiceDate}'}</code> - Factuurdatum</p>
+                  <p><code>{'{dueDate}'}</code> - Vervaldatum</p>
+                  <p><code>{'{companyName}'}</code> - Bedrijfsnaam</p>
+                  <p><code>{'{paymentLink}'}</code> - Betaallink (indien beschikbaar)</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Subject Field */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Email Onderwerp</label>
+              <Input
+                value={editingEmailTemplate === 'invoice'
+                  ? emailTemplates.invoiceEmail.subject
+                  : emailTemplates.paymentReminder.subject}
+                onChange={(e) => {
+                  if (editingEmailTemplate === 'invoice') {
+                    setEmailTemplates(prev => ({
+                      ...prev,
+                      invoiceEmail: { ...prev.invoiceEmail, subject: e.target.value }
+                    }));
+                  } else {
+                    setEmailTemplates(prev => ({
+                      ...prev,
+                      paymentReminder: { ...prev.paymentReminder, subject: e.target.value }
+                    }));
+                  }
+                }}
+                placeholder={editingEmailTemplate === 'invoice'
+                  ? 'Factuur {invoiceNumber}'
+                  : 'Betalingsherinnering - Factuur {invoiceNumber}'}
+              />
+            </div>
+
+            {/* Content Field */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Email Inhoud (HTML)</label>
+              <textarea
+                className="w-full h-96 px-3 py-2 border border-input rounded-md font-mono text-sm"
+                value={editingEmailTemplate === 'invoice'
+                  ? emailTemplates.invoiceEmail.content
+                  : emailTemplates.paymentReminder.content}
+                onChange={(e) => {
+                  if (editingEmailTemplate === 'invoice') {
+                    setEmailTemplates(prev => ({
+                      ...prev,
+                      invoiceEmail: { ...prev.invoiceEmail, content: e.target.value }
+                    }));
+                  } else {
+                    setEmailTemplates(prev => ({
+                      ...prev,
+                      paymentReminder: { ...prev.paymentReminder, content: e.target.value }
+                    }));
+                  }
+                }}
+                placeholder="Voer je HTML email template in..."
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Gebruik HTML voor opmaak. Variabelen worden automatisch vervangen bij het verzenden.
+              </p>
+            </div>
+
+            {/* Preview Section */}
+            <div className="border-t pt-4">
+              <h4 className="font-medium mb-2">Voorbeeld</h4>
+              <div className="border rounded-lg p-4 bg-gray-50 max-h-64 overflow-y-auto">
+                <div
+                  className="prose prose-sm max-w-none"
+                  dangerouslySetInnerHTML={{
+                    __html: (editingEmailTemplate === 'invoice'
+                      ? emailTemplates.invoiceEmail.content
+                      : emailTemplates.paymentReminder.content)
+                      .replace(/{{clientName}}/g, 'Jan Jansen')
+                      .replace(/{{invoiceNumber}}/g, 'FAC-2024-001')
+                      .replace(/{{totalAmount}}/g, '€500.00')
+                      .replace(/{{invoiceDate}}/g, new Date().toLocaleDateString('nl-NL'))
+                      .replace(/{{dueDate}}/g, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('nl-NL'))
+                      .replace(/{{companyName}}/g, userProfile?.businessInfo?.companyName || 'Je Bedrijf')
+                      .replace(/{{paymentLink}}/g, 'https://betaal.link/voorbeeld')
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setIsEmailTemplateDialogOpen(false)}>
+              Annuleren
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleResetEmailTemplate}
+              className="text-red-600 hover:bg-red-50"
+            >
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Reset naar Standaard
+            </Button>
+            <Button onClick={handleSaveEmailTemplate} disabled={loading}>
+              {loading ? 'Opslaan...' : 'Template Opslaan'}
             </Button>
           </DialogFooter>
         </DialogContent>

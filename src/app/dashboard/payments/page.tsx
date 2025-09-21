@@ -31,7 +31,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Search, Mail, ExternalLink, CreditCard, CheckCircle, Clock, AlertCircle, Euro, Zap, Smartphone, Building2, RefreshCw } from 'lucide-react';
+import { Search, Mail, ExternalLink, CreditCard, CheckCircle, Clock, AlertCircle, Euro, Zap, Smartphone, Building2, RefreshCw, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { soundService } from '@/lib/sound-service';
@@ -72,6 +72,7 @@ export default function PaymentsPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
   const [isPaymentMethodDialogOpen, setIsPaymentMethodDialogOpen] = useState(false);
+  const [isPaymentReminderDialogOpen, setIsPaymentReminderDialogOpen] = useState(false);
   const [emailSending, setEmailSending] = useState(false);
   const [customMessage, setCustomMessage] = useState('');
   const [sendWithPaymentLink, setSendWithPaymentLink] = useState(false);
@@ -357,6 +358,7 @@ export default function PaymentsPage() {
           subject: `Factuur ${selectedInvoice.invoiceNumber}`,
           invoiceId: selectedInvoice.id,
           clientId: client.id,
+          userId: currentUser?.uid,
           paymentLink, // Will be null if sendWithPaymentLink is false
           customMessage,
         }),
@@ -428,6 +430,66 @@ export default function PaymentsPage() {
   const openPaymentMethodDialog = (invoice: Invoice) => {
     setSelectedInvoice(invoice);
     setIsPaymentMethodDialogOpen(true);
+  };
+
+  const openPaymentReminderDialog = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    setCustomMessage('');
+    setIsPaymentReminderDialogOpen(true);
+  };
+
+  const sendPaymentReminder = async () => {
+    if (!selectedInvoice) return;
+
+    setEmailSending(true);
+    try {
+      const client = clients.find(c => c.id === selectedInvoice.clientId);
+      if (!client) {
+        toast.error('Klant niet gevonden.');
+        return;
+      }
+
+      // Use existing payment link if available
+      const paymentLink = selectedInvoice.paymentLink || undefined;
+
+      // Send payment reminder email
+      const response = await fetch('/api/send-payment-reminder', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: client.email,
+          invoiceId: selectedInvoice.id,
+          clientId: client.id,
+          userId: currentUser?.uid,
+          paymentLink,
+          customMessage,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to send payment reminder');
+      }
+
+      const result = await response.json();
+
+      toast.success(`Betalingsherinnering succesvol verzonden naar ${client.email}!`);
+      // Play email sent confirmation sound
+      soundService.playEmailSent();
+      setIsPaymentReminderDialogOpen(false);
+      setSelectedInvoice(null);
+      setCustomMessage('');
+    } catch (error) {
+      console.error('Error sending payment reminder:', error);
+
+      // Show specific error message to user
+      const errorMessage = error instanceof Error ? error.message : 'Er is een fout opgetreden bij het verzenden van de betalingsherinnering.';
+      toast.error(errorMessage);
+    } finally {
+      setEmailSending(false);
+    }
   };
 
   const createPaymentWithMethod = async (method: 'payment_link' | 'checkout_session' | 'ing' | 'paypal' | 'mollie' | 'tikkie') => {
@@ -1039,6 +1101,17 @@ export default function PaymentsPage() {
                                 >
                                   <Mail className="h-4 w-4" />
                                 </Button>
+                                {(invoice.status === 'overdue' || invoice.status === 'sent') && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => openPaymentReminderDialog(invoice)}
+                                    title="Verstuur betalingsherinnering"
+                                    className="text-orange-600 hover:bg-orange-50"
+                                  >
+                                    <Bell className="h-4 w-4" />
+                                  </Button>
+                                )}
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -1297,6 +1370,61 @@ export default function PaymentsPage() {
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setIsPaymentMethodDialogOpen(false)}>
               Annuleren
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Reminder Dialog */}
+      <Dialog open={isPaymentReminderDialogOpen} onOpenChange={setIsPaymentReminderDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Betalingsherinnering Versturen</DialogTitle>
+            <DialogDescription>
+              Verstuur een betalingsherinnering voor factuur {selectedInvoice?.invoiceNumber} naar de klant.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {selectedInvoice && (
+              <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Bell className="h-4 w-4 text-orange-600" />
+                  <span className="text-sm font-medium text-orange-800">Factuurinformatie</span>
+                </div>
+                <div className="text-sm text-orange-700">
+                  <p><strong>Factuur:</strong> {selectedInvoice.invoiceNumber}</p>
+                  <p><strong>Bedrag:</strong> €{selectedInvoice.totalAmount.toFixed(2)}</p>
+                  <p><strong>Vervaldatum:</strong> {new Date(selectedInvoice.dueDate.seconds * 1000).toLocaleDateString('nl-NL')}</p>
+                  {selectedInvoice.paymentLink && (
+                    <p><strong>Betaallink:</strong> Beschikbaar</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Persoonlijk bericht (optioneel)</label>
+              <textarea
+                className="w-full min-h-[100px] px-3 py-2 border border-input rounded-md"
+                value={customMessage}
+                onChange={(e) => setCustomMessage(e.target.value)}
+                placeholder="Voeg een persoonlijk bericht toe aan de betalingsherinnering..."
+              />
+            </div>
+
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>Let op:</strong> De betalingsherinnering wordt verzonden met een urgente toon.
+                {selectedInvoice?.paymentLink ? ' De bestaande betaallink wordt automatisch toegevoegd.' : ' Er is geen betaallink beschikbaar voor deze factuur.'}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsPaymentReminderDialogOpen(false)}>
+              Annuleren
+            </Button>
+            <Button onClick={sendPaymentReminder} disabled={emailSending} className="bg-orange-600 hover:bg-orange-700">
+              {emailSending ? 'Verzenden...' : 'Herinnering Versturen'}
             </Button>
           </DialogFooter>
         </DialogContent>

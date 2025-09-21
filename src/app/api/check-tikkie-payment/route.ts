@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
 
     // Map Tikkie payment status to invoice status
     // Check if payment has been made even if status is still OPEN (sandbox behavior)
-    if ((paymentStatus.status === 'PAID') || (paymentStatus.status === 'OPEN' && paymentStatus.amount > 0)) {
+    if ((paymentStatus.status === 'PAID') || (paymentStatus.status === 'OPEN' && paymentStatus.amount)) {
       if (invoiceData.status !== 'paid') {
         newStatus = 'paid';
         paidAt = new Date();

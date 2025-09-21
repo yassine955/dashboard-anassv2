@@ -18,13 +18,14 @@ export async function POST(request: NextRequest) {
       paymentLink
     } = await request.json();
 
-    // If we have invoiceId and clientId, generate the email HTML
+    // If we have invoiceId and clientId, generate the email HTML and PDF
     let finalHtml = html;
     let finalSubject = subject;
+    let attachments = undefined;
 
     if (invoiceId && clientId) {
       try {
-        // Get invoice, client, and user data
+        // Get invoice, client, and user data (single query for both email and PDF)
         const [invoiceDoc, clientDoc, userDoc] = await Promise.all([
           getDoc(doc(db, 'invoices', invoiceId)),
           getDoc(doc(db, 'clients', clientId)),
@@ -49,6 +50,32 @@ export async function POST(request: NextRequest) {
         if (!finalSubject) {
           finalSubject = generateEmailSubject('invoice', invoice, user || undefined);
         }
+
+        // Generate PDF attachment using the same data
+        console.log(`Attempting PDF generation for invoice ${invoice.invoiceNumber}`);
+        console.log(`User data available: ${user ? 'Yes' : 'No'}`);
+
+        if (user) {
+          try {
+            console.log(`Generating PDF for invoice ${invoice.invoiceNumber} with user ${user.uid}`);
+            const pdfBuffer = await generateInvoicePDF(invoice, client, user);
+
+            attachments = [{
+              filename: `Factuur-${invoice.invoiceNumber}.pdf`,
+              content: Buffer.from(pdfBuffer),
+              contentType: 'application/pdf'
+            }];
+
+            console.log(`✅ Successfully generated PDF attachment for invoice ${invoice.invoiceNumber} (${pdfBuffer.length} bytes)`);
+          } catch (pdfError) {
+            console.error(`❌ Error generating PDF attachment for invoice ${invoice.invoiceNumber}:`, pdfError);
+            // Continue without attachment rather than failing the whole email
+          }
+        } else {
+          console.warn(`⚠️ User data not available for PDF generation, skipping attachment for invoice ${invoice.invoiceNumber}`);
+          // Continue to send email without attachment
+        }
+
       } catch (error) {
         console.error('Error generating invoice email:', error);
         return NextResponse.json(
@@ -75,40 +102,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate PDF attachment for invoice emails
-    let attachments = undefined;
-    if (invoiceId && clientId) {
-      try {
-        // Get the data again (we already validated it exists above)
-        const [invoiceDoc, clientDoc, userDoc] = await Promise.all([
-          getDoc(doc(db, 'invoices', invoiceId)),
-          getDoc(doc(db, 'clients', clientId)),
-          userId ? getDoc(doc(db, 'users', userId)) : Promise.resolve(null)
-        ]);
-
-        const invoice = { id: invoiceDoc.id, ...invoiceDoc.data() } as Invoice;
-        const client = { id: clientDoc.id, ...clientDoc.data() } as Client;
-        const user = userDoc?.exists() ? { uid: userDoc.id, ...userDoc.data() } as User : undefined;
-
-        // Generate PDF only if user data is available
-        if (!user) {
-          console.warn('User data not available for PDF generation, skipping attachment');
-          return; // Skip PDF generation
-        }
-        const pdfBuffer = await generateInvoicePDF(invoice, client, user);
-
-        attachments = [{
-          filename: `Factuur-${invoice.invoiceNumber}.pdf`,
-          content: Buffer.from(pdfBuffer),
-          contentType: 'application/pdf'
-        }];
-
-        console.log(`Generated PDF attachment for invoice ${invoice.invoiceNumber}`);
-      } catch (pdfError) {
-        console.error('Error generating PDF attachment:', pdfError);
-        // Continue without attachment rather than failing the whole email
-      }
-    }
 
     const result = await sendEmail({
       to,

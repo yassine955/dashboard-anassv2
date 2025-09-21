@@ -70,20 +70,25 @@ export async function POST(request: NextRequest) {
       // Generate PDF attachment
       let attachments = undefined;
       try {
-        // Generate PDF only if user data is available
+        console.log(`Attempting PDF generation for payment reminder ${invoice.invoiceNumber}`);
+        console.log(`User data available: ${user ? 'Yes' : 'No'}`);
+
         if (user) {
+          console.log(`Generating PDF for payment reminder ${invoice.invoiceNumber} with user ${user.uid}`);
           const pdfBuffer = await generateInvoicePDF(invoice, client, user);
+
           attachments = [{
             filename: `Factuur-${invoice.invoiceNumber}.pdf`,
             content: Buffer.from(pdfBuffer),
             contentType: 'application/pdf'
           }];
-          console.log(`Generated PDF attachment for payment reminder ${invoice.invoiceNumber}`);
+
+          console.log(`✅ Successfully generated PDF attachment for payment reminder ${invoice.invoiceNumber} (${pdfBuffer.length} bytes)`);
         } else {
-          console.warn('User data not available for PDF generation, skipping attachment');
+          console.warn(`⚠️ User data not available for PDF generation, skipping attachment for payment reminder ${invoice.invoiceNumber}`);
         }
       } catch (pdfError) {
-        console.error('Error generating PDF attachment for payment reminder:', pdfError);
+        console.error(`❌ Error generating PDF attachment for payment reminder ${invoice.invoiceNumber}:`, pdfError);
         // Continue without attachment rather than failing the whole email
       }
 

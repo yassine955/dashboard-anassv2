@@ -4,11 +4,16 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { invoiceService, clientService } from '@/lib/firebase-service';
 // Email functionality is handled via API route
-import { Invoice, Client } from '@/types';
+import { Invoice, Client, User } from '@/types';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { validatePaymentAmount, validateInvoiceForPayment, formatPaymentError } from '@/lib/payment-validation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -26,13 +31,36 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Search, Mail, ExternalLink, CreditCard, CheckCircle, Clock, AlertCircle, Euro, Zap, Smartphone, Building2 } from 'lucide-react';
+import { Search, Mail, ExternalLink, CreditCard, CheckCircle, Clock, AlertCircle, Euro, Zap, Smartphone, Building2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { soundService } from '@/lib/sound-service';
 import { PayPalIcon } from '@/components/icons/PayPalIcon';
 import { MollieIcon } from '@/components/icons/MollieIcon';
 import { TikkieIcon } from '@/components/icons/TikkieIcon';
+
+// Helper functions for payment providers
+const getProviderDisplayName = (provider: string): string => {
+  switch (provider) {
+    case 'stripe': return 'Stripe';
+    case 'tikkie': return 'Tikkie';
+    case 'ing': return 'ING';
+    case 'paypal': return 'PayPal';
+    case 'mollie': return 'Mollie';
+    default: return provider;
+  }
+};
+
+const getProviderIcon = (provider: string) => {
+  switch (provider) {
+    case 'stripe': return <CreditCard className="h-4 w-4" />;
+    case 'tikkie': return <TikkieIcon className="h-4 w-4" />;
+    case 'ing': return <Building2 className="h-4 w-4" />;
+    case 'paypal': return <PayPalIcon className="h-4 w-4" />;
+    case 'mollie': return <MollieIcon className="h-4 w-4" />;
+    default: return <CreditCard className="h-4 w-4" />;
+  }
+};
 
 export default function PaymentsPage() {
   const { currentUser } = useAuth();
@@ -46,7 +74,48 @@ export default function PaymentsPage() {
   const [isPaymentMethodDialogOpen, setIsPaymentMethodDialogOpen] = useState(false);
   const [emailSending, setEmailSending] = useState(false);
   const [customMessage, setCustomMessage] = useState('');
-  const [sendWithPaymentLink, setSendWithPaymentLink] = useState(true);
+  const [sendWithPaymentLink, setSendWithPaymentLink] = useState(false);
+  const [selectedPaymentProvider, setSelectedPaymentProvider] = useState<string | null>(null);
+  const [userData, setUserData] = useState<User | null>(null);
+  const [availableProviders, setAvailableProviders] = useState<string[]>([]);
+  const [refreshingStatus, setRefreshingStatus] = useState<string | null>(null);
+  const [isAutoPolling, setIsAutoPolling] = useState(false);
+
+  // Load user data and payment settings
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const loadUserData = async () => {
+      try {
+        const userDocRef = doc(db, 'users', currentUser.uid);
+        const userDoc = await getDoc(userDocRef);
+
+        if (userDoc.exists()) {
+          const user = { uid: userDoc.id, ...userDoc.data() } as User;
+          setUserData(user);
+
+          // Determine available payment providers
+          const providers: string[] = [];
+          if (user.paymentSettings?.stripe?.isActive) providers.push('stripe');
+          if (user.paymentSettings?.tikkie?.isActive) providers.push('tikkie');
+          if (user.paymentSettings?.ing?.isActive) providers.push('ing');
+          if (user.paymentSettings?.paypal?.isActive) providers.push('paypal');
+          if (user.paymentSettings?.mollie?.isActive) providers.push('mollie');
+
+          setAvailableProviders(providers);
+
+          // Set default payment provider to first available
+          if (providers.length > 0) {
+            setSelectedPaymentProvider(providers[0]);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+      }
+    };
+
+    loadUserData();
+  }, [currentUser]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -93,6 +162,68 @@ export default function PaymentsPage() {
     });
     setFilteredInvoices(filtered);
   }, [invoices, clients, searchTerm]);
+
+  // Auto-polling for pending payments
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const checkPendingPayments = async () => {
+      const pendingPayments = invoices.filter(invoice =>
+        invoice.status === 'sent' &&
+        invoice.paymentId &&
+        (invoice.paymentProvider === 'tikkie' || invoice.paymentLink?.includes('tikkie'))
+      );
+
+      if (pendingPayments.length > 0) {
+        setIsAutoPolling(true);
+      }
+
+      for (const invoice of pendingPayments) {
+        try {
+          const response = await fetch('/api/check-tikkie-payment', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${await currentUser.getIdToken()}`,
+            },
+            body: JSON.stringify({
+              paymentId: invoice.paymentId,
+              invoiceId: invoice.id,
+              userId: currentUser.uid,
+            }),
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.updated && result.invoiceStatus === 'paid') {
+              // Firebase listener will handle the UI update and notification
+              console.log(`Payment detected for invoice ${invoice.invoiceNumber}`);
+            }
+          }
+        } catch (error) {
+          console.error(`Error checking payment status for ${invoice.invoiceNumber}:`, error);
+        }
+      }
+
+      if (pendingPayments.length === 0) {
+        setIsAutoPolling(false);
+      }
+    };
+
+    // Check immediately on load
+    if (invoices.length > 0) {
+      checkPendingPayments();
+    }
+
+    // Set up polling every 30 seconds for pending payments
+    const pollInterval = setInterval(() => {
+      if (invoices.some(inv => inv.status === 'sent' && inv.paymentId)) {
+        checkPendingPayments();
+      }
+    }, 30000); // Poll every 30 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [currentUser, invoices]);
 
   const createPaymentLink = async (invoice: Invoice, useCheckoutSession = false) => {
     try {
@@ -167,6 +298,25 @@ export default function PaymentsPage() {
     }
   };
 
+  // Create payment link based on selected provider
+  const createPaymentLinkForProvider = async (invoice: Invoice, provider: string): Promise<string | null> => {
+    switch (provider) {
+      case 'stripe':
+        return await createPaymentLink(invoice);
+      case 'tikkie':
+        return await createTikkiePayment(invoice);
+      case 'ing':
+        return await createINGPayment(invoice);
+      case 'paypal':
+        return await createPayPalPayment(invoice);
+      case 'mollie':
+        return await createMolliePayment(invoice);
+      default:
+        toast.error(`Onbekende payment provider: ${provider}`);
+        return null;
+    }
+  };
+
   const sendInvoiceEmail = async () => {
     if (!selectedInvoice) return;
 
@@ -180,10 +330,18 @@ export default function PaymentsPage() {
 
       // Only create payment link if user chose to send with payment link
       let paymentLink = null;
-      if (sendWithPaymentLink) {
+      if (sendWithPaymentLink && selectedPaymentProvider) {
         paymentLink = selectedInvoice.paymentLink;
-        if (!paymentLink) {
-          paymentLink = await createPaymentLink(selectedInvoice);
+        // Check if existing payment link is for the same provider
+        const needsNewPaymentLink = !paymentLink ||
+          (selectedPaymentProvider === 'stripe' && !paymentLink.includes('checkout.stripe.com') && !paymentLink.includes('buy.stripe.com')) ||
+          (selectedPaymentProvider === 'tikkie' && !paymentLink.includes('tikkie')) ||
+          (selectedPaymentProvider === 'ing' && !paymentLink.includes('ing')) ||
+          (selectedPaymentProvider === 'paypal' && !paymentLink.includes('paypal')) ||
+          (selectedPaymentProvider === 'mollie' && !paymentLink.includes('mollie'));
+
+        if (needsNewPaymentLink) {
+          paymentLink = await createPaymentLinkForProvider(selectedInvoice, selectedPaymentProvider);
           if (!paymentLink) return;
         }
       }
@@ -220,7 +378,8 @@ export default function PaymentsPage() {
       setIsEmailDialogOpen(false);
       setSelectedInvoice(null);
       setCustomMessage('');
-      setSendWithPaymentLink(true); // Reset to default
+      setSendWithPaymentLink(availableProviders.length > 0);
+      setSelectedPaymentProvider(availableProviders.length > 0 ? availableProviders[0] : null);
     } catch (error) {
       console.error('Error sending email:', error);
 
@@ -261,7 +420,8 @@ export default function PaymentsPage() {
   const openEmailDialog = (invoice: Invoice) => {
     setSelectedInvoice(invoice);
     setCustomMessage('');
-    setSendWithPaymentLink(true); // Default to sending with payment link
+    setSendWithPaymentLink(availableProviders.length > 0);
+    setSelectedPaymentProvider(availableProviders.length > 0 ? availableProviders[0] : null);
     setIsEmailDialogOpen(true);
   };
 
@@ -533,13 +693,54 @@ export default function PaymentsPage() {
 
       const { url, paymentId } = await response.json();
 
-      // Update invoice with Tikkie payment link
+      // Update invoice with Tikkie payment link and payment info
       await invoiceService.updateInvoice(invoice.id, {
         paymentLink: url,
+        paymentId: paymentId,
+        paymentProvider: 'tikkie',
         status: 'sent'
       }, currentUser?.uid);
 
       toast.success('Tikkie betaling succesvol aangemaakt!');
+
+      // Start frequent polling for this payment (check every 5 seconds for first 2 minutes)
+      let pollCount = 0;
+      const maxPolls = 24; // 24 polls = 2 minutes at 5-second intervals
+
+      const frequentPoll = setInterval(async () => {
+        pollCount++;
+
+        try {
+          const pollResponse = await fetch('/api/check-tikkie-payment', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${await currentUser?.getIdToken()}`,
+            },
+            body: JSON.stringify({
+              paymentId: paymentId,
+              invoiceId: invoice.id,
+              userId: currentUser?.uid,
+            }),
+          });
+
+          if (pollResponse.ok) {
+            const pollResult = await pollResponse.json();
+            if (pollResult.updated && pollResult.invoiceStatus === 'paid') {
+              clearInterval(frequentPoll);
+              console.log(`Fast payment detection for invoice ${invoice.invoiceNumber}`);
+            }
+          }
+        } catch (error) {
+          console.error('Error in frequent poll:', error);
+        }
+
+        // Stop frequent polling after 2 minutes (regular 30s polling will continue)
+        if (pollCount >= maxPolls) {
+          clearInterval(frequentPoll);
+        }
+      }, 5000); // Poll every 5 seconds
+
       setIsPaymentMethodDialogOpen(false);
       setSelectedInvoice(null);
       return url;
@@ -548,6 +749,70 @@ export default function PaymentsPage() {
       toast.error(formattedError);
       console.error('Error creating Tikkie payment:', error);
       return null;
+    }
+  };
+
+  const refreshPaymentStatus = async (invoice: Invoice) => {
+    if (!invoice.paymentId || !invoice.paymentLink) {
+      toast.error('Geen betalingsinformatie beschikbaar om te vernieuwen.');
+      return;
+    }
+
+    setRefreshingStatus(invoice.id);
+    try {
+      // Determine payment provider based on payment link URL
+      let endpoint = '';
+      let provider = '';
+
+      if (invoice.paymentLink.includes('tikkie') || invoice.paymentProvider === 'tikkie') {
+        endpoint = '/api/check-tikkie-payment';
+        provider = 'Tikkie';
+      } else if (invoice.paymentLink.includes('paypal') || invoice.paymentProvider === 'paypal') {
+        endpoint = '/api/check-paypal-payment';
+        provider = 'PayPal';
+      } else if (invoice.paymentLink.includes('mollie') || invoice.paymentProvider === 'mollie') {
+        endpoint = '/api/check-mollie-payment';
+        provider = 'Mollie';
+      } else {
+        // Default to Stripe
+        endpoint = '/api/check-stripe-payment';
+        provider = 'Stripe';
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentUser?.uid}`,
+        },
+        body: JSON.stringify({
+          paymentId: invoice.paymentId,
+          invoiceId: invoice.id,
+          userId: currentUser?.uid,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to check ${provider} payment status`);
+      }
+
+      const result = await response.json();
+
+      if (result.updated) {
+        toast.success(`Betalingsstatus bijgewerkt! Status: ${result.invoiceStatus}`);
+        if (result.invoiceStatus === 'paid') {
+          soundService.playPaymentReceived();
+        }
+      } else {
+        toast.info(`Geen wijzigingen. Huidige status: ${result.paymentStatus}`);
+      }
+
+    } catch (error: any) {
+      console.error('Error refreshing payment status:', error);
+      toast.error(error.message || 'Er is een fout opgetreden bij het vernieuwen van de betalingsstatus.');
+    } finally {
+      setRefreshingStatus(null);
     }
   };
 
@@ -600,9 +865,17 @@ export default function PaymentsPage() {
         animate={{ opacity: 1, y: 0 }}
         className="flex flex-col gap-4"
       >
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Betalingen</h1>
-          <p className="text-gray-600">Overzicht van alle facturen en betalingen</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Betalingen</h1>
+            <p className="text-gray-600">Overzicht van alle facturen en betalingen</p>
+          </div>
+          {isAutoPolling && (
+            <div className="flex items-center text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-full">
+              <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+              Live monitoring betalingen...
+            </div>
+          )}
         </div>
       </motion.div>
 
@@ -744,6 +1017,14 @@ export default function PaymentsPage() {
                                   invoice.status === 'overdue' ? 'Verlopen' :
                                     invoice.status === 'draft' ? 'Concept' : 'Openstaand'}
                             </span>
+                            {invoice.status === 'sent' &&
+                             invoice.paymentId &&
+                             (invoice.paymentProvider === 'tikkie' || invoice.paymentLink?.includes('tikkie')) && (
+                              <div className="flex items-center text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full" title="Live monitoring actief">
+                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse mr-1"></div>
+                                Live
+                              </div>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -767,14 +1048,28 @@ export default function PaymentsPage() {
                                   <CreditCard className="h-4 w-4" />
                                 </Button>
                                 {invoice.paymentLink && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => window.open(invoice.paymentLink, '_blank')}
-                                    title="Open betaallink"
-                                  >
-                                    <ExternalLink className="h-4 w-4" />
-                                  </Button>
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => window.open(invoice.paymentLink, '_blank')}
+                                      title="Open betaallink"
+                                    >
+                                      <ExternalLink className="h-4 w-4" />
+                                    </Button>
+                                    {(invoice.paymentId || invoice.paymentProvider) && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => refreshPaymentStatus(invoice)}
+                                        disabled={refreshingStatus === invoice.id}
+                                        title="Vernieuw betalingsstatus"
+                                        className="text-blue-600 hover:bg-blue-50"
+                                      >
+                                        <RefreshCw className={`h-4 w-4 ${refreshingStatus === invoice.id ? 'animate-spin' : ''}`} />
+                                      </Button>
+                                    )}
+                                  </>
                                 )}
                                 <Button
                                   variant="outline"
@@ -813,43 +1108,74 @@ export default function PaymentsPage() {
       {/* Email Dialog */}
       <Dialog open={isEmailDialogOpen} onOpenChange={(open) => {
         setIsEmailDialogOpen(open);
-        if (!open) setSendWithPaymentLink(true); // Reset to default when closing
+        if (!open) {
+          setSendWithPaymentLink(availableProviders.length > 0);
+          setSelectedPaymentProvider(availableProviders.length > 0 ? availableProviders[0] : null);
+        }
       }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Factuur Verzenden</DialogTitle>
             <DialogDescription>
-              {sendWithPaymentLink 
-                ? `Verstuur factuur ${selectedInvoice?.invoiceNumber} naar de klant met een betaallink.` 
+              {sendWithPaymentLink && selectedPaymentProvider
+                ? `Verstuur factuur ${selectedInvoice?.invoiceNumber} naar de klant met ${getProviderDisplayName(selectedPaymentProvider)} betaallink.`
                 : `Verstuur factuur ${selectedInvoice?.invoiceNumber} naar de klant zonder betaallink.`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            {/* Payment Link Toggle */}
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-              <div>
-                <p className="text-sm font-medium">Betaallink toevoegen</p>
-                <p className="text-xs text-gray-500">
-                  {sendWithPaymentLink 
-                    ? "De klant kan direct online betalen" 
-                    : "De klant ontvangt alleen de factuur"}
+            {/* Payment Provider Selection */}
+            {availableProviders.length > 0 && (
+              <div className="p-3 bg-gray-50 rounded-md space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="include-payment-link" className="text-sm font-medium">
+                    Betaallink toevoegen
+                  </Label>
+                  <Switch
+                    id="include-payment-link"
+                    checked={sendWithPaymentLink}
+                    onCheckedChange={setSendWithPaymentLink}
+                  />
+                </div>
+
+                {sendWithPaymentLink && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Betaalmethode</Label>
+                    <Select value={selectedPaymentProvider || ''} onValueChange={setSelectedPaymentProvider}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Kies een betaalmethode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableProviders.map((provider) => (
+                          <SelectItem key={provider} value={provider}>
+                            <div className="flex items-center space-x-2">
+                              {getProviderIcon(provider)}
+                              <span>{getProviderDisplayName(provider)}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-500">
+                      De klant kan direct online betalen via {selectedPaymentProvider ? getProviderDisplayName(selectedPaymentProvider) : 'de gekozen methode'}
+                    </p>
+                  </div>
+                )}
+
+                {!sendWithPaymentLink && (
+                  <p className="text-xs text-gray-500">
+                    De klant ontvangt alleen de factuur zonder betaalmogelijkheid
+                  </p>
+                )}
+              </div>
+            )}
+
+            {availableProviders.length === 0 && (
+              <div className="p-3 bg-yellow-50 rounded-md">
+                <p className="text-sm text-yellow-800">
+                  Geen betaalmethodes geactiveerd. Ga naar instellingen om betaalmethodes te configureren.
                 </p>
               </div>
-              <div className="relative inline-block w-10 mr-2 align-middle select-none">
-                <input
-                  type="checkbox"
-                  name="toggle"
-                  id="toggle"
-                  className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
-                  checked={sendWithPaymentLink}
-                  onChange={() => setSendWithPaymentLink(!sendWithPaymentLink)}
-                />
-                <label
-                  htmlFor="toggle"
-                  className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
-                ></label>
-              </div>
-            </div>
+            )}
             
             <div>
               <label className="block text-sm font-medium mb-1">Persoonlijk bericht (optioneel)</label>

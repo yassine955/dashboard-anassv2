@@ -52,9 +52,9 @@ export async function POST(request: NextRequest) {
     const userData = userDoc.data();
     const tikkieSettings = userData.paymentSettings?.tikkie;
 
-    if (!tikkieSettings?.isActive || !tikkieSettings?.apiKey) {
+    if (!tikkieSettings?.isActive || !tikkieSettings?.apiKey || !tikkieSettings?.appToken) {
       return NextResponse.json(
-        { error: "Tikkie is not configured for this user. Please configure Tikkie in your settings." },
+        { error: "Tikkie is not configured for this user. Please configure both API Key and App Token in your settings." },
         { status: 400 }
       );
     }
@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
       clientId,
       tikkieSettings: {
         apiKey: tikkieSettings.apiKey,
+        appToken: tikkieSettings.appToken,
         sandboxMode: tikkieSettings.sandboxMode,
       }
     });

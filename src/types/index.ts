@@ -57,8 +57,11 @@ export interface User {
     };
     tikkie?: {
       apiKey: string;
+      appToken?: string;
       sandboxMode: boolean;
       isActive: boolean;
+      appTokenCreatedAt?: string;
+      appTokenExpiresAt?: string;
     };
   };
   stripeAccountId?: string; // Legacy field - keeping for backward compatibility
@@ -120,6 +123,10 @@ export interface Invoice {
   notes?: string;
   paymentTerms?: string;
   paymentLink?: string;
+  paymentId?: string;
+  paymentProvider?: 'stripe' | 'tikkie' | 'mollie' | 'paypal' | 'ing';
+  paidAt?: Timestamp;
+  paidAmount?: number;
   items: InvoiceItem[];
   createdAt: Timestamp;
   updatedAt: Timestamp;

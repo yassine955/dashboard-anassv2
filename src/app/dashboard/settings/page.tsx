@@ -84,6 +84,7 @@ export default function SettingsPage() {
 
   const [tikkieSettings, setTikkieSettings] = useState({
     apiKey: userProfile?.paymentSettings?.tikkie?.apiKey || '',
+    appToken: userProfile?.paymentSettings?.tikkie?.appToken || '',
     sandboxMode: userProfile?.paymentSettings?.tikkie?.sandboxMode || false,
     isActive: userProfile?.paymentSettings?.tikkie?.isActive || false
   });
@@ -276,6 +277,54 @@ export default function SettingsPage() {
     } catch (error) {
       toast.error('Er is een fout opgetreden bij het opslaan van Mollie instellingen.');
       console.error('Error saving Mollie settings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateSandboxAppToken = async () => {
+    setLoading(true);
+    try {
+      if (!currentUser?.uid) {
+        throw new Error('User not authenticated');
+      }
+
+      if (!tikkieSettings.apiKey) {
+        toast.error('Vul eerst een API sleutel in voordat je een App Token genereert.');
+        return;
+      }
+
+      const response = await fetch('/api/tikkie-sandbox-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${await currentUser.getIdToken()}`,
+        },
+        body: JSON.stringify({
+          userId: currentUser.uid,
+          apiKey: tikkieSettings.apiKey,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create sandbox app token');
+      }
+
+      const result = await response.json();
+
+      // Update local state with the new app token
+      setTikkieSettings(prev => ({
+        ...prev,
+        appToken: result.appToken,
+        sandboxMode: true,
+        isActive: true,
+      }));
+
+      toast.success('Sandbox App Token succesvol gegenereerd! Je kunt nu sandbox betalingen testen.');
+    } catch (error: any) {
+      console.error('Error creating sandbox app token:', error);
+      toast.error(error.message || 'Er is een fout opgetreden bij het genereren van de App Token.');
     } finally {
       setLoading(false);
     }
@@ -720,6 +769,11 @@ export default function SettingsPage() {
                           API Key: {userProfile.paymentSettings.tikkie.apiKey.slice(0, 8)}***
                         </p>
                       )}
+                      {userProfile?.paymentSettings?.tikkie?.appToken && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          App Token: {userProfile.paymentSettings.tikkie.appToken.slice(0, 8)}***
+                        </p>
+                      )}
                     </div>
                   </div>
                   <Button
@@ -1085,24 +1139,29 @@ export default function SettingsPage() {
 
       {/* Tikkie Configuration Dialog */}
       <Dialog open={isTikkieDialogOpen} onOpenChange={setIsTikkieDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Tikkie Configureren</DialogTitle>
             <DialogDescription>
-              Configureer je Tikkie API sleutel voor betalingen.
+              Configureer je Tikkie API sleutel voor betalingen in sandbox of productie modus.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1">API Sleutel *</label>
               <Input
-                placeholder="Your Tikkie API key"
+                placeholder="KGlSlQbY35aT7rnQ7IsZ75lDa6f9oqL5"
                 value={tikkieSettings.apiKey}
                 onChange={(e) => setTikkieSettings(prev => ({ ...prev, apiKey: e.target.value }))}
               />
+              <p className="text-xs text-gray-500 mt-1">
+                Van ABN AMRO Developer Portal
+              </p>
             </div>
+
+            {/* Sandbox Mode Toggle */}
             <div>
-              <label className="block text-sm font-medium mb-1">Sandbox Mode</label>
+              <label className="block text-sm font-medium mb-2">Modus</label>
               <div className="flex items-center space-x-2">
                 <input
                   type="checkbox"
@@ -1112,10 +1171,52 @@ export default function SettingsPage() {
                   className="rounded border-gray-300"
                 />
                 <label htmlFor="tikkie-sandbox" className="text-sm">
-                  Sandbox modus inschakelen (voor testen)
+                  Sandbox modus (voor testen)
                 </label>
               </div>
             </div>
+
+            {/* App Token Section */}
+            <div>
+              <label className="block text-sm font-medium mb-1">App Token *</label>
+              {tikkieSettings.sandboxMode ? (
+                <div className="space-y-2">
+                  <div className="flex space-x-2">
+                    <Input
+                      placeholder="Sandbox App Token (automatisch gegenereerd)"
+                      value={tikkieSettings.appToken}
+                      onChange={(e) => setTikkieSettings(prev => ({ ...prev, appToken: e.target.value }))}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCreateSandboxAppToken}
+                      disabled={loading || !tikkieSettings.apiKey}
+                      className="whitespace-nowrap"
+                    >
+                      {loading ? 'Genereren...' : 'Genereer'}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Klik op &quot;Genereer&quot; om automatisch een sandbox App Token aan te maken
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <Input
+                    placeholder="Your Tikkie App Token"
+                    value={tikkieSettings.appToken}
+                    onChange={(e) => setTikkieSettings(prev => ({ ...prev, appToken: e.target.value }))}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Van Tikkie Business Portal (Instellingen → APIs → Create token)
+                  </p>
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center space-x-2">
               <input
                 type="checkbox"
@@ -1128,14 +1229,30 @@ export default function SettingsPage() {
                 Tikkie integratie activeren
               </label>
             </div>
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+
+            {/* Instructions */}
+            <div className={`p-3 border rounded-lg ${tikkieSettings.sandboxMode ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'}`}>
               <div className="flex items-start space-x-2">
-                <AlertTriangle className="h-4 w-4 text-blue-600 mt-0.5" />
+                <AlertTriangle className={`h-4 w-4 mt-0.5 ${tikkieSettings.sandboxMode ? 'text-amber-600' : 'text-blue-600'}`} />
                 <div>
-                  <p className="text-sm font-medium text-blue-800">Belangrijke informatie</p>
-                  <p className="text-xs text-blue-700 mt-1">
-                    Tikkie vereist een ABN AMRO zakelijke rekening. Gebruik sandbox mode voor testen.
+                  <p className={`text-sm font-medium ${tikkieSettings.sandboxMode ? 'text-amber-800' : 'text-blue-800'}`}>
+                    {tikkieSettings.sandboxMode ? 'Sandbox Setup' : 'Productie Setup'}
                   </p>
+                  {tikkieSettings.sandboxMode ? (
+                    <p className="text-xs text-amber-700 mt-1">
+                      1. Vul je API sleutel in van developer.abnamro.com<br/>
+                      2. Klik op &quot;Genereer&quot; om een sandbox App Token te maken<br/>
+                      3. Test betalingen met de iDEAL simulator<br/>
+                      4. Schakel naar productie modus wanneer je klaar bent
+                    </p>
+                  ) : (
+                    <p className="text-xs text-blue-700 mt-1">
+                      1. Registreer een app op developer.abnamro.com<br/>
+                      2. Upload je public key en krijg een API sleutel<br/>
+                      3. Maak een App Token in Tikkie Business Portal<br/>
+                      4. Test eerst in sandbox mode voordat je live gaat
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -1146,7 +1263,7 @@ export default function SettingsPage() {
             </Button>
             <Button
               onClick={handleSaveTikkieSettings}
-              disabled={loading || !tikkieSettings.apiKey}
+              disabled={loading || !tikkieSettings.apiKey || !tikkieSettings.appToken}
             >
               {loading ? 'Opslaan...' : 'Opslaan'}
             </Button>

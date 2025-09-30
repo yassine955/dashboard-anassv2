@@ -225,3 +225,13 @@ export interface BusinessExpense {
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
+
+export interface Notification {
+  id: string;
+  userId: string;
+  type: 'success' | 'error' | 'info' | 'loading' | 'warning';
+  category: 'payment' | 'invoice' | 'client' | 'product' | 'system' | 'other';
+  message: string;
+  read: boolean;
+  createdAt: Timestamp;
+}

@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Settings, User, Building, CreditCard, Mail, Save, Eye, EyeOff, CheckCircle, AlertTriangle, FileText, RotateCcw } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-with-notification';
 import { motion } from 'framer-motion';
 import { Avatar } from '@/components/ui/avatar';
 import { TikkieIcon } from '@/components/icons/TikkieIcon';

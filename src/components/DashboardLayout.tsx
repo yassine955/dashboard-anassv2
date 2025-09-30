@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { NotificationBell } from '@/components/NotificationBell';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -23,7 +24,7 @@ import {
   Info
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-with-notification';
 import { soundService } from '@/lib/sound-service';
 
 interface DashboardLayoutProps {
@@ -246,6 +247,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
           </div>
           <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
+            <NotificationBell />
             <span className="hidden sm:inline text-sm text-gray-500 truncate">
               Welkom, {currentUser?.displayName?.split(' ')[0] || 'User'}
             </span>

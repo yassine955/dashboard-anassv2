@@ -8,7 +8,7 @@ import { Invoice } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, AlertCircle, ArrowLeft, ExternalLink, AlertTriangle } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-with-notification';
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 

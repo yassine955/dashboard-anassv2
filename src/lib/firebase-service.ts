@@ -19,7 +19,7 @@ import {
     setDoc,
 } from "firebase/firestore"
 import { db } from "./firebase"
-import { Client, Product, Invoice } from "@/types"
+import { Client, Product, Invoice, Notification } from "@/types"
 
 // Helper function to safely update Firebase documents (filters out undefined values)
 function createSafeUpdateData(data: Record<string, any>): Record<string, any> {
@@ -405,52 +405,167 @@ export const invoiceService = {
         originalInvoice: Invoice,
         userId?: string
     ): Promise<Invoice> {
-        // If userId is provided, verify ownership
-        if (userId && originalInvoice.userId !== userId) {
-            throw new Error("Access denied: Invoice belongs to another user")
-        }
+        try {
+            console.log('[duplicateInvoice] Starting duplication', {
+                invoiceId: originalInvoice.id,
+                userId,
+                invoiceUserId: originalInvoice.userId
+            });
 
-        const newInvoiceNumber = await this.generateInvoiceNumber(originalInvoice.userId)
+            // If userId is provided, verify ownership
+            if (userId && originalInvoice.userId !== userId) {
+                throw new Error("Access denied: Invoice belongs to another user")
+            }
 
-        // Create clean invoice data without id, client, and other computed fields
-        const duplicatedInvoiceData: any = {
-            userId: originalInvoice.userId,
-            invoiceNumber: newInvoiceNumber,
-            clientId: originalInvoice.clientId,
-            invoiceDate: originalInvoice.invoiceDate,
-            dueDate: originalInvoice.dueDate,
-            subtotal: originalInvoice.subtotal,
-            vatAmount: originalInvoice.vatAmount,
-            totalAmount: originalInvoice.totalAmount,
-            status: 'draft' as const,
-            notes: originalInvoice.notes || '',
-            items: originalInvoice.items.map(item => {
-                const newItem: any = {
-                    id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                    description: item.description,
-                    quantity: item.quantity,
-                    unitPrice: item.unitPrice,
-                    vatRate: item.vatRate,
-                    lineTotal: item.lineTotal
-                };
+            console.log('[duplicateInvoice] Generating new invoice number');
+            const newInvoiceNumber = await this.generateInvoiceNumber(originalInvoice.userId)
+            console.log('[duplicateInvoice] New invoice number:', newInvoiceNumber);
 
-                // Only add productId if it exists and is not undefined
-                if (item.productId !== undefined && item.productId !== null) {
-                    newItem.productId = item.productId;
+            // Create clean invoice data without id, client, and other computed fields
+            const duplicatedInvoiceData: any = {
+                userId: originalInvoice.userId,
+                invoiceNumber: newInvoiceNumber,
+                clientId: originalInvoice.clientId,
+                invoiceDate: originalInvoice.invoiceDate,
+                dueDate: originalInvoice.dueDate,
+                subtotal: originalInvoice.subtotal,
+                vatAmount: originalInvoice.vatAmount,
+                totalAmount: originalInvoice.totalAmount,
+                status: 'draft' as const,
+                notes: originalInvoice.notes || '',
+                items: originalInvoice.items.map(item => {
+                    const newItem: any = {
+                        id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                        description: item.description || '',
+                        quantity: item.quantity || 0,
+                        unitPrice: item.unitPrice || 0,
+                        vatRate: item.vatRate || 0,
+                        lineTotal: item.lineTotal || 0
+                    };
+
+                    // Only add productId if it exists and is not undefined
+                    if (item.productId !== undefined && item.productId !== null) {
+                        newItem.productId = item.productId;
+                    }
+
+                    return newItem;
+                }),
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+            }
+
+            // Only add optional fields if they have values (and are not undefined)
+            if (originalInvoice.paymentTerms !== undefined && originalInvoice.paymentTerms !== null) {
+                duplicatedInvoiceData.paymentTerms = originalInvoice.paymentTerms;
+            }
+
+            // Remove any undefined values from the data object
+            Object.keys(duplicatedInvoiceData).forEach(key => {
+                if (duplicatedInvoiceData[key] === undefined) {
+                    delete duplicatedInvoiceData[key];
                 }
+            });
 
-                return newItem;
-            }),
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
+            console.log('[duplicateInvoice] Adding document to Firestore');
+            const docRef = await addDoc(collection(db, "invoices"), duplicatedInvoiceData)
+            console.log('[duplicateInvoice] Document added successfully:', docRef.id);
+
+            return { id: docRef.id, ...duplicatedInvoiceData } as Invoice
+        } catch (error: any) {
+            console.error('[duplicateInvoice] Error occurred:', error);
+            console.error('[duplicateInvoice] Error stack:', error?.stack);
+            throw new Error(`Failed to duplicate invoice: ${error.message}`);
         }
-
-        // Only add optional fields if they have values
-        if (originalInvoice.paymentTerms !== undefined && originalInvoice.paymentTerms !== null) {
-            duplicatedInvoiceData.paymentTerms = originalInvoice.paymentTerms;
-        }
-
-        const docRef = await addDoc(collection(db, "invoices"), duplicatedInvoiceData)
-        return { id: docRef.id, ...duplicatedInvoiceData } as Invoice
     },
+}
+
+// Notification Service
+export const notificationService = {
+    // Save notification to Firebase
+    async saveNotification(
+        userId: string,
+        type: Notification['type'],
+        category: Notification['category'],
+        message: string
+    ): Promise<Notification> {
+        const notificationData = {
+            userId,
+            type,
+            category,
+            message,
+            read: false,
+            createdAt: serverTimestamp(),
+        }
+
+        const docRef = await addDoc(collection(db, "notifications"), notificationData)
+        return { id: docRef.id, ...notificationData, createdAt: new Date() as any } as Notification
+    },
+
+    // Get notifications for user
+    async getNotifications(userId: string, limit: number = 50): Promise<Notification[]> {
+        const q = query(
+            collection(db, "notifications"),
+            where("userId", "==", userId),
+            orderBy("createdAt", "desc")
+        )
+
+        const snapshot = await getDocs(q)
+        return snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        })) as Notification[]
+    },
+
+    // Mark notification as read
+    async markAsRead(notificationId: string): Promise<void> {
+        const docRef = doc(db, "notifications", notificationId)
+        await updateDoc(docRef, { read: true })
+    },
+
+    // Mark all notifications as read for user
+    async markAllAsRead(userId: string): Promise<void> {
+        const q = query(
+            collection(db, "notifications"),
+            where("userId", "==", userId),
+            where("read", "==", false)
+        )
+
+        const snapshot = await getDocs(q)
+        const updatePromises = snapshot.docs.map(doc =>
+            updateDoc(doc.ref, { read: true })
+        )
+        await Promise.all(updatePromises)
+    },
+
+    // Clear all notifications for user
+    async clearAllNotifications(userId: string): Promise<void> {
+        const q = query(
+            collection(db, "notifications"),
+            where("userId", "==", userId)
+        )
+
+        const snapshot = await getDocs(q)
+        const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref))
+        await Promise.all(deletePromises)
+    },
+
+    // Subscribe to notifications real-time
+    subscribeToNotifications(
+        userId: string,
+        callback: (notifications: Notification[]) => void
+    ): () => void {
+        const q = query(
+            collection(db, "notifications"),
+            where("userId", "==", userId),
+            orderBy("createdAt", "desc")
+        )
+
+        return onSnapshot(q, (snapshot) => {
+            const notifications = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })) as Notification[]
+            callback(notifications)
+        })
+    }
 }

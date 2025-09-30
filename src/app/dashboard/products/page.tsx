@@ -25,7 +25,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Plus, Search, Edit, Trash2, Package, Euro, Eye } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-with-notification';
 import { motion } from 'framer-motion';
 import { Timestamp } from 'firebase/firestore';
 

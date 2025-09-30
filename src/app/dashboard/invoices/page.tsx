@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { invoiceService, clientService, productService } from '@/lib/firebase-service';
 import { generateInvoicePDF, downloadPDF } from '@/lib/pdf';
@@ -41,8 +41,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Plus, Search, Edit, Trash2, FileText, Download, Mail, Eye, Euro, Copy, CreditCard, ExternalLink, CheckCircle, Clock, AlertCircle, RefreshCw, Bell, Zap, Smartphone, Building2, MoreHorizontal } from 'lucide-react';
-import { toast } from 'sonner';
+import { Plus, Search, Edit, Trash2, FileText, Download, Mail, Eye, Euro, Copy, CreditCard, ExternalLink, CheckCircle, Clock, AlertCircle, RefreshCw, Bell, Zap, Smartphone, Building2, MoreHorizontal, Loader2 } from 'lucide-react';
+import { toast } from '@/lib/toast-with-notification';
 import { motion } from 'framer-motion';
 import { Timestamp } from 'firebase/firestore';
 import { soundService } from '@/lib/sound-service';
@@ -137,6 +137,8 @@ export default function InvoicesPage() {
   const [isAutoPolling, setIsAutoPolling] = useState(false);
   const [pendingInvoiceData, setPendingInvoiceData] = useState<any>(null);
   const [duplicatingInvoice, setDuplicatingInvoice] = useState<string | null>(null);
+  const [duplicateTimer, setDuplicateTimer] = useState<number>(0);
+  const duplicateTimerRef = useRef<number>(0);
 
   // Invoice editing state
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -243,15 +245,8 @@ export default function InvoicesPage() {
       setInvoices(updatedInvoices);
       setLoading(false);
 
-      // Check for newly paid invoices and show notifications
-      updatedInvoices.forEach(invoice => {
-        if (invoice.status === 'paid') {
-          const wasUnpaid = invoices.find(i => i.id === invoice.id && i.status !== 'paid');
-          if (wasUnpaid) {
-            showPaymentNotification(invoice.invoiceNumber, `Factuur ${invoice.invoiceNumber} is betaald! 🎉`);
-          }
-        }
-      });
+      // Note: Payment notifications are handled by the payment polling system
+      // to avoid duplicate notifications and sounds
     });
 
     // Load clients and products
@@ -380,6 +375,25 @@ export default function InvoicesPage() {
 
     return () => clearInterval(pollInterval);
   }, [currentUser, invoices]);
+
+  // Timer for duplicate operation
+  useEffect(() => {
+    let timerInterval: NodeJS.Timeout | null = null;
+
+    if (duplicatingInvoice) {
+      timerInterval = setInterval(() => {
+        duplicateTimerRef.current += 1;
+        setDuplicateTimer(duplicateTimerRef.current);
+      }, 1000);
+    } else {
+      duplicateTimerRef.current = 0;
+      setDuplicateTimer(0);
+    }
+
+    return () => {
+      if (timerInterval) clearInterval(timerInterval);
+    };
+  }, [duplicatingInvoice]);
 
   // Basic functionality
   const calculateTotals = () => {
@@ -560,14 +574,28 @@ export default function InvoicesPage() {
       return;
     }
 
+    duplicateTimerRef.current = 0;
+    setDuplicateTimer(0);
     setDuplicatingInvoice(invoice.id);
+    toast.loading('Factuur wordt gedupliceerd...', { id: 'duplicate-invoice' });
     try {
+      console.log('Starting duplicate for invoice:', invoice.id);
       await invoiceService.duplicateInvoice(invoice, currentUser.uid);
-      toast.success('✅ Factuur succesvol gedupliceerd!');
+      // Capture the timer value from ref before clearing state
+      const elapsedTime = duplicateTimerRef.current;
+      console.log('Duplicate successful, elapsed time:', elapsedTime);
+      toast.success(`✅ Factuur succesvol gedupliceerd in ${elapsedTime}s!`, { id: 'duplicate-invoice' });
       soundService.playSuccess && soundService.playSuccess();
-    } catch (error) {
-      toast.error('Er is een fout opgetreden bij het dupliceren van de factuur.');
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Onbekende fout';
       console.error('Error duplicating invoice:', error);
+      console.error('Error details:', {
+        message: errorMessage,
+        stack: error?.stack,
+        invoiceId: invoice.id,
+        userId: currentUser.uid
+      });
+      toast.error(`Fout bij dupliceren: ${errorMessage}`, { id: 'duplicate-invoice' });
     } finally {
       setDuplicatingInvoice(null);
     }
@@ -1907,8 +1935,12 @@ export default function InvoicesPage() {
                                   disabled={duplicatingInvoice === invoice.id}
                                   className="cursor-pointer"
                                 >
-                                  <Copy className="mr-2 h-4 w-4" />
-                                  {duplicatingInvoice === invoice.id ? 'Dupliceren...' : 'Dupliceer factuur'}
+                                  {duplicatingInvoice === invoice.id ? (
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Copy className="mr-2 h-4 w-4" />
+                                  )}
+                                  {duplicatingInvoice === invoice.id ? `Dupliceren... (${duplicateTimer}s)` : 'Dupliceer factuur'}
                                 </DropdownMenuItem>
 
                                 {invoice.status !== 'paid' && (

@@ -45,6 +45,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setCurrentUser(user);
 
       if (user) {
+        // Store userId in localStorage for notification service
+        localStorage.setItem('currentUserId', user.uid);
 
         try {
           // Get or create user profile
@@ -94,6 +96,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           console.error('Error fetching user profile:', error);
         }
       } else {
+        // Remove userId from localStorage on logout
+        localStorage.removeItem('currentUserId');
         setUserProfile(null);
       }
 

@@ -32,7 +32,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { soundService } from '@/lib/sound-service';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-with-notification';
 import { BTWQuarter, BusinessExpense } from '@/types';
 import { Timestamp } from 'firebase/firestore';
 import { ResponsiveContainer, ResponsiveGrid, FluidText, ResponsiveSpacer } from '@/components/ui/responsive-container';

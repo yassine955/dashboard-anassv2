@@ -24,7 +24,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Plus, Search, Edit, Trash2, Users } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Users, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Timestamp } from 'firebase/firestore';
@@ -75,6 +75,8 @@ export default function ClientsPage() {
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [formData, setFormData] = useState<ClientFormData>(initialFormData);
   const [submitting, setSubmitting] = useState(false);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [viewingClient, setViewingClient] = useState<Client | null>(null);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -160,6 +162,11 @@ export default function ClientsPage() {
     setEditingClient(null);
     setFormData(initialFormData);
     setIsDialogOpen(true);
+  };
+
+  const handleView = (client: Client) => {
+    setViewingClient(client);
+    setIsViewDialogOpen(true);
   };
 
   if (loading) {
@@ -409,6 +416,13 @@ export default function ClientsPage() {
                           <Button
                             variant="outline"
                             size="sm"
+                            onClick={() => handleView(client)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
                             onClick={() => handleEdit(client)}
                           >
                             <Edit className="h-4 w-4" />
@@ -430,6 +444,133 @@ export default function ClientsPage() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* View Client Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Klant Details</DialogTitle>
+            <DialogDescription>
+              Details van {viewingClient?.firstName} {viewingClient?.lastName}
+            </DialogDescription>
+          </DialogHeader>
+          {viewingClient && (
+            <div className="space-y-6">
+              {/* Client Header */}
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Volledige naam</label>
+                    <p className="text-lg font-semibold">{viewingClient.firstName} {viewingClient.lastName}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Status</label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        viewingClient.status === 'active' ? 'bg-green-100 text-green-800' :
+                        viewingClient.status === 'inactive' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {viewingClient.status === 'active' ? 'Actief' :
+                         viewingClient.status === 'inactive' ? 'Inactief' : 'Gearchiveerd'}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Email</label>
+                    <p className="text-sm">{viewingClient.email}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Telefoon</label>
+                    <p className="text-sm">{viewingClient.phone || 'Niet opgegeven'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Company Information */}
+              {(viewingClient.companyName || viewingClient.kvkNumber || viewingClient.vatNumber) && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Bedrijfsgegevens</label>
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    {viewingClient.companyName && (
+                      <div className="mb-2">
+                        <span className="text-sm font-medium">Bedrijfsnaam: </span>
+                        <span className="text-sm">{viewingClient.companyName}</span>
+                      </div>
+                    )}
+                    {viewingClient.kvkNumber && (
+                      <div className="mb-2">
+                        <span className="text-sm font-medium">KvK Nummer: </span>
+                        <span className="text-sm">{viewingClient.kvkNumber}</span>
+                      </div>
+                    )}
+                    {viewingClient.vatNumber && (
+                      <div>
+                        <span className="text-sm font-medium">BTW Nummer: </span>
+                        <span className="text-sm">{viewingClient.vatNumber}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Address Information */}
+              {(viewingClient.address.street || viewingClient.address.city || viewingClient.address.postalCode) && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Adres</label>
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    {viewingClient.address.street && (
+                      <p className="text-sm">{viewingClient.address.street}</p>
+                    )}
+                    <div className="flex gap-2">
+                      {viewingClient.address.postalCode && (
+                        <span className="text-sm">{viewingClient.address.postalCode}</span>
+                      )}
+                      {viewingClient.address.city && (
+                        <span className="text-sm">{viewingClient.address.city}</span>
+                      )}
+                    </div>
+                    {viewingClient.address.country && (
+                      <p className="text-sm">{viewingClient.address.country}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              {viewingClient.notes && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Opmerkingen</label>
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <p className="text-sm whitespace-pre-wrap">{viewingClient.notes}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Timestamps */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Klant sinds</label>
+                  <p className="text-sm">
+                    {new Date(viewingClient.createdAt.seconds * 1000).toLocaleString('nl-NL')}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Laatst bijgewerkt</label>
+                  <p className="text-sm">
+                    {new Date(viewingClient.updatedAt.seconds * 1000).toLocaleString('nl-NL')}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsViewDialogOpen(false)}>
+              Sluiten
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

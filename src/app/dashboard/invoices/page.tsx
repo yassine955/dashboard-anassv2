@@ -138,6 +138,20 @@ export default function InvoicesPage() {
   const [pendingInvoiceData, setPendingInvoiceData] = useState<any>(null);
   const [duplicatingInvoice, setDuplicatingInvoice] = useState<string | null>(null);
 
+  // Invoice editing state
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [editingItems, setEditingItems] = useState<InvoiceItem[]>([]);
+  const [editingSelectedClientId, setEditingSelectedClientId] = useState('');
+  const [editingInvoiceDate, setEditingInvoiceDate] = useState('');
+  const [editingDueDate, setEditingDueDate] = useState('');
+  const [editingNotes, setEditingNotes] = useState('');
+  const [updatingInvoice, setUpdatingInvoice] = useState(false);
+
+  // Invoice viewing state
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+
   // Bulk selection state
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
   const [isSelectAllChecked, setIsSelectAllChecked] = useState(false);
@@ -557,6 +571,124 @@ export default function InvoicesPage() {
     } finally {
       setDuplicatingInvoice(null);
     }
+  };
+
+  // Invoice editing functions
+  const openEditDialog = (invoice: Invoice) => {
+    setEditingInvoice(invoice);
+    setEditingItems([...invoice.items]);
+    setEditingSelectedClientId(invoice.clientId);
+    setEditingInvoiceDate(new Date(invoice.invoiceDate.seconds * 1000).toISOString().split('T')[0]);
+    setEditingDueDate(new Date(invoice.dueDate.seconds * 1000).toISOString().split('T')[0]);
+    setEditingNotes(invoice.notes || '');
+    setIsEditDialogOpen(true);
+  };
+
+  const calculateEditingTotals = () => {
+    const subtotal = editingItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+    const vatAmount = editingItems.reduce((sum, item) =>
+      sum + ((item.quantity * item.unitPrice) * item.vatRate / 100), 0
+    );
+    const total = subtotal + vatAmount;
+    return { subtotal, vatAmount, total };
+  };
+
+  const addEditingInvoiceItem = () => {
+    setEditingItems([...editingItems, {
+      id: crypto.randomUUID(),
+      description: '',
+      quantity: 1,
+      unitPrice: 0,
+      vatRate: 21,
+      lineTotal: 0
+    }]);
+  };
+
+  const removeEditingInvoiceItem = (index: number) => {
+    if (editingItems.length > 1) {
+      setEditingItems(editingItems.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateEditingInvoiceItem = (index: number, field: string, value: any) => {
+    const updatedItems = editingItems.map((item, i) => {
+      if (i === index) {
+        const updatedItem = { ...item, [field]: value };
+        // Recalculate lineTotal when quantity or unitPrice changes
+        if (field === 'quantity' || field === 'unitPrice') {
+          updatedItem.lineTotal = updatedItem.quantity * updatedItem.unitPrice;
+        }
+        return updatedItem;
+      }
+      return item;
+    });
+    setEditingItems(updatedItems);
+  };
+
+  const addEditingProductToInvoice = (product: Product) => {
+    setEditingItems([...editingItems, {
+      id: crypto.randomUUID(),
+      productId: product.id,
+      product: product,
+      description: product.name,
+      quantity: 1,
+      unitPrice: product.basePrice,
+      vatRate: product.vatRate || 21,
+      lineTotal: product.basePrice
+    }]);
+  };
+
+  const updateInvoice = async () => {
+    if (!currentUser || !editingInvoice || !editingSelectedClientId || editingItems.length === 0) {
+      toast.error('Vul alle verplichte velden in.');
+      return;
+    }
+
+    // Check if all items are valid
+    const hasInvalidItems = editingItems.some(item =>
+      !item.description || item.quantity <= 0 || item.unitPrice <= 0
+    );
+
+    if (hasInvalidItems) {
+      toast.error('Vul alle verplichte velden in voor alle factuurregels.');
+      return;
+    }
+
+    const { subtotal, vatAmount, total } = calculateEditingTotals();
+
+    setUpdatingInvoice(true);
+    try {
+      const updatedInvoiceData = {
+        clientId: editingSelectedClientId,
+        invoiceDate: Timestamp.fromDate(new Date(editingInvoiceDate)),
+        dueDate: Timestamp.fromDate(new Date(editingDueDate)),
+        subtotal,
+        vatAmount,
+        totalAmount: total,
+        items: editingItems,
+        notes: editingNotes,
+      };
+
+      await invoiceService.updateInvoice(editingInvoice.id, updatedInvoiceData, currentUser.uid);
+
+      toast.success('Factuur succesvol bijgewerkt!');
+      setIsEditDialogOpen(false);
+      setEditingInvoice(null);
+      setEditingItems([]);
+      setEditingSelectedClientId('');
+      setEditingNotes('');
+    } catch (error) {
+      toast.error('Er is een fout opgetreden bij het bijwerken van de factuur.');
+      console.error('Error updating invoice:', error);
+    } finally {
+      setUpdatingInvoice(false);
+    }
+  };
+
+  // Invoice viewing functions
+  const openViewDialog = (invoice: Invoice) => {
+    setViewingInvoice(invoice);
+    setIsViewDialogOpen(true);
   };
 
   // Bulk selection functions
@@ -1754,6 +1886,23 @@ export default function InvoicesPage() {
 
                                 {/* Invoice actions */}
                                 <DropdownMenuItem
+                                  onClick={() => openViewDialog(invoice)}
+                                  className="cursor-pointer"
+                                >
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  Inzien factuur
+                                </DropdownMenuItem>
+
+                                <DropdownMenuItem
+                                  onClick={() => openEditDialog(invoice)}
+                                  className="cursor-pointer"
+                                  disabled={invoice.status === 'paid'}
+                                >
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Bewerk factuur
+                                </DropdownMenuItem>
+
+                                <DropdownMenuItem
                                   onClick={() => handleDuplicate(invoice)}
                                   disabled={duplicatingInvoice === invoice.id}
                                   className="cursor-pointer"
@@ -2179,6 +2328,397 @@ export default function InvoicesPage() {
               className="bg-blue-600 hover:bg-blue-700"
             >
               {emailSending ? 'Verzenden...' : 'Factuur Verzenden'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Invoice Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Factuur Bewerken</DialogTitle>
+            <DialogDescription>
+              Bewerk factuur {editingInvoice?.invoiceNumber}. Let op: betaalde facturen kunnen niet worden bewerkt.
+            </DialogDescription>
+          </DialogHeader>
+          {editingInvoice && (
+            <div className="space-y-6">
+              {/* Client Selection */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Klant *</label>
+                <select
+                  value={editingSelectedClientId}
+                  onChange={(e) => setEditingSelectedClientId(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  <option value="">Selecteer een klant...</option>
+                  {clients.map(client => (
+                    <option key={client.id} value={client.id}>
+                      {client.firstName} {client.lastName} {client.companyName ? `(${client.companyName})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Invoice Details */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Factuurdatum *</label>
+                  <input
+                    type="date"
+                    value={editingInvoiceDate}
+                    onChange={(e) => setEditingInvoiceDate(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Vervaldatum *</label>
+                  <input
+                    type="date"
+                    value={editingDueDate}
+                    onChange={(e) => setEditingDueDate(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Invoice Items */}
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-medium">Factuurregels</h3>
+                  <Button type="button" onClick={addEditingInvoiceItem} size="sm">
+                    <Plus className="h-4 w-4 mr-1" />
+                    Regel Toevoegen
+                  </Button>
+                </div>
+
+                {editingItems.map((item, index) => (
+                  <div key={index} className="p-4 border border-gray-200 rounded-lg space-y-3">
+                    <div className="flex justify-between items-start">
+                      <h4 className="font-medium">Regel {index + 1}</h4>
+                      {editingItems.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => removeEditingInvoiceItem(index)}
+                          className="text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-gray-700">Beschrijving *</label>
+                        <input
+                          type="text"
+                          placeholder="Beschrijving van product/dienst"
+                          value={item.description}
+                          onChange={(e) => updateEditingInvoiceItem(index, 'description', e.target.value)}
+                          className="w-full p-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-gray-700">Aantal *</label>
+                        <input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          placeholder="1"
+                          value={item.quantity}
+                          onChange={(e) => updateEditingInvoiceItem(index, 'quantity', parseFloat(e.target.value) || 1)}
+                          className="w-full p-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-gray-700">Prijs per stuk (€) *</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={item.unitPrice}
+                          onChange={(e) => updateEditingInvoiceItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                          className="w-full p-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-gray-700">BTW %</label>
+                        <select
+                          value={item.vatRate}
+                          onChange={(e) => updateEditingInvoiceItem(index, 'vatRate', parseFloat(e.target.value))}
+                          className="w-full p-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value={0}>0% (BTW-vrij)</option>
+                          <option value={9}>9% (Laag tarief)</option>
+                          <option value={21}>21% (Hoog tarief)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="text-right text-sm text-gray-600">
+                      Subtotaal: €{(item.quantity * item.unitPrice).toFixed(2)} |
+                      BTW: €{((item.quantity * item.unitPrice) * (item.vatRate / 100)).toFixed(2)} |
+                      Totaal: €{((item.quantity * item.unitPrice) * (1 + item.vatRate / 100)).toFixed(2)}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Quick Add Products */}
+                {products.length > 0 && (
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <h4 className="font-medium mb-3">Snelle selectie uit je producten</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {products.map(product => (
+                        <Button
+                          key={product.id}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => addEditingProductToInvoice(product)}
+                          className="justify-start h-auto py-2 px-3"
+                        >
+                          <div className="text-left">
+                            <div className="font-medium text-sm">{product.name}</div>
+                            <div className="text-xs text-gray-500">€{product.basePrice.toFixed(2)}</div>
+                          </div>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Invoice Notes */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Opmerkingen (optioneel)</label>
+                <textarea
+                  placeholder="Aanvullende informatie voor de factuur..."
+                  value={editingNotes}
+                  onChange={(e) => setEditingNotes(e.target.value)}
+                  className="w-full min-h-[80px] p-3 border border-gray-300 rounded-md resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Invoice Totals */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium mb-3">Factuurtotaal</h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>Subtotaal (excl. BTW):</span>
+                    <span>€{calculateEditingTotals().subtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>BTW:</span>
+                    <span>€{calculateEditingTotals().vatAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-lg font-semibold border-t border-gray-300 pt-2">
+                    <span>Totaal (incl. BTW):</span>
+                    <span>€{calculateEditingTotals().total.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Validation Messages */}
+              {!editingSelectedClientId && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-700">Selecteer een klant om door te gaan.</p>
+                </div>
+              )}
+              {editingItems.some(item => !item.description || item.quantity <= 0 || item.unitPrice <= 0) && (
+                <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                  <p className="text-sm text-orange-700">Vul alle verplichte velden in voor alle factuurregels.</p>
+                </div>
+              )}
+              {editingInvoice?.status === 'paid' && (
+                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-700">Let op: Deze factuur is al betaald. Wijzigingen kunnen gevolgen hebben voor je administratie.</p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Annuleren
+            </Button>
+            <Button onClick={updateInvoice} disabled={updatingInvoice || editingInvoice?.status === 'paid'}>
+              {updatingInvoice ? 'Bijwerken...' : 'Factuur Bijwerken'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Invoice Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Factuur Inzien</DialogTitle>
+            <DialogDescription>
+              Details van factuur {viewingInvoice?.invoiceNumber}
+            </DialogDescription>
+          </DialogHeader>
+          {viewingInvoice && (
+            <div className="space-y-6">
+              {/* Invoice Header */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-50 rounded-lg">
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Factuurnummer</label>
+                    <p className="text-lg font-semibold">{viewingInvoice.invoiceNumber}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Status</label>
+                    <div className="flex items-center gap-2 mt-1">
+                      {viewingInvoice.status === 'paid' && (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      )}
+                      {viewingInvoice.status === 'pending' && (
+                        <Clock className="h-4 w-4 text-yellow-500" />
+                      )}
+                      {viewingInvoice.status === 'overdue' && (
+                        <AlertCircle className="h-4 w-4 text-red-500" />
+                      )}
+                      {viewingInvoice.status === 'draft' && (
+                        <Eye className="h-4 w-4 text-gray-500" />
+                      )}
+                      <span className="text-sm">
+                        {viewingInvoice.status === 'paid' && 'Betaald'}
+                        {viewingInvoice.status === 'pending' && 'In afwachting'}
+                        {viewingInvoice.status === 'overdue' && 'Vervallen'}
+                        {viewingInvoice.status === 'draft' && 'Concept'}
+                        {viewingInvoice.status === 'sent' && 'Verzonden'}
+                      </span>
+                    </div>
+                  </div>
+                  {viewingInvoice.paymentProvider && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Betaalwijze</label>
+                      <p className="text-sm capitalize">{viewingInvoice.paymentProvider}</p>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Klant</label>
+                    {clients.find(c => c.id === viewingInvoice.clientId) && (
+                      <p className="text-sm">
+                        {clients.find(c => c.id === viewingInvoice.clientId)!.firstName} {clients.find(c => c.id === viewingInvoice.clientId)!.lastName}
+                        {clients.find(c => c.id === viewingInvoice.clientId)!.companyName && (
+                          <span className="block text-xs text-gray-600">
+                            {clients.find(c => c.id === viewingInvoice.clientId)!.companyName}
+                          </span>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Factuurdatum</label>
+                      <p className="text-sm">
+                        {new Date(viewingInvoice.invoiceDate.seconds * 1000).toLocaleDateString('nl-NL')}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Vervaldatum</label>
+                      <p className="text-sm">
+                        {new Date(viewingInvoice.dueDate.seconds * 1000).toLocaleDateString('nl-NL')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Invoice Items */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Factuurregels</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse border border-gray-300">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="border border-gray-300 px-3 py-2 text-left text-sm font-medium">Beschrijving</th>
+                        <th className="border border-gray-300 px-3 py-2 text-center text-sm font-medium">Aantal</th>
+                        <th className="border border-gray-300 px-3 py-2 text-center text-sm font-medium">Prijs</th>
+                        <th className="border border-gray-300 px-3 py-2 text-center text-sm font-medium">BTW %</th>
+                        <th className="border border-gray-300 px-3 py-2 text-right text-sm font-medium">Totaal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {viewingInvoice.items.map((item, index) => (
+                        <tr key={index} className="hover:bg-gray-50">
+                          <td className="border border-gray-300 px-3 py-2 text-sm">{item.description}</td>
+                          <td className="border border-gray-300 px-3 py-2 text-center text-sm">{item.quantity}</td>
+                          <td className="border border-gray-300 px-3 py-2 text-center text-sm">€{item.unitPrice.toFixed(2)}</td>
+                          <td className="border border-gray-300 px-3 py-2 text-center text-sm">{item.vatRate}%</td>
+                          <td className="border border-gray-300 px-3 py-2 text-right text-sm">
+                            €{(item.quantity * item.unitPrice).toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Invoice Totals */}
+              <div className="flex justify-end">
+                <div className="w-80 space-y-2 p-4 bg-gray-50 rounded-lg">
+                  <div className="flex justify-between text-sm">
+                    <span>Subtotaal (excl. BTW):</span>
+                    <span>€{viewingInvoice.subtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>BTW:</span>
+                    <span>€{viewingInvoice.vatAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-lg font-semibold border-t border-gray-300 pt-2">
+                    <span>Totaal (incl. BTW):</span>
+                    <span>€{viewingInvoice.totalAmount.toFixed(2)}</span>
+                  </div>
+                  {viewingInvoice.paidAmount && viewingInvoice.paidAmount > 0 && (
+                    <div className="flex justify-between text-sm text-green-600 border-t border-gray-300 pt-2">
+                      <span>Betaald bedrag:</span>
+                      <span>€{viewingInvoice.paidAmount.toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Notes */}
+              {viewingInvoice.notes && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium">Opmerkingen</h4>
+                  <div className="p-3 bg-gray-50 rounded-lg text-sm">
+                    {viewingInvoice.notes}
+                  </div>
+                </div>
+              )}
+
+              {/* Payment Information */}
+              {viewingInvoice.paidAt && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium">Betalingsinformatie</h4>
+                  <div className="p-3 bg-green-50 rounded-lg text-sm">
+                    <p>Betaald op: {new Date(viewingInvoice.paidAt.seconds * 1000).toLocaleString('nl-NL')}</p>
+                    {viewingInvoice.paymentId && (
+                      <p>Betaling ID: {viewingInvoice.paymentId}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsViewDialogOpen(false)}>
+              Sluiten
             </Button>
           </DialogFooter>
         </DialogContent>

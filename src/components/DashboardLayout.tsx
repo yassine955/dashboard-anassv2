@@ -80,7 +80,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 alt="QuickInvoice Logo"
                 width={160}
                 height={36}
-                className="h-6 sm:h-8 w-auto"
+                className="h-8 sm:h-10 lg:h-12 w-auto"
                 priority
               />
             </div>

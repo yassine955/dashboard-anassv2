@@ -24,7 +24,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Plus, Search, Edit, Trash2, Package, Euro } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Package, Euro, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Timestamp } from 'firebase/firestore';
@@ -73,6 +73,8 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState<ProductFormData>(initialFormData);
   const [submitting, setSubmitting] = useState(false);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -155,6 +157,11 @@ export default function ProductsPage() {
     setEditingProduct(null);
     setFormData(initialFormData);
     setIsDialogOpen(true);
+  };
+
+  const handleView = (product: Product) => {
+    setViewingProduct(product);
+    setIsViewDialogOpen(true);
   };
 
   const totalValue = products.reduce((sum, product) => sum + product.basePrice, 0);
@@ -431,6 +438,13 @@ export default function ProductsPage() {
                           <Button
                             variant="outline"
                             size="sm"
+                            onClick={() => handleView(product)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
                             onClick={() => handleEdit(product)}
                           >
                             <Edit className="h-4 w-4" />
@@ -452,6 +466,120 @@ export default function ProductsPage() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* View Product Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Product Details</DialogTitle>
+            <DialogDescription>
+              Details van {viewingProduct?.name}
+            </DialogDescription>
+          </DialogHeader>
+          {viewingProduct && (
+            <div className="space-y-6">
+              {/* Product Header */}
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Productnaam</label>
+                    <p className="text-lg font-semibold">{viewingProduct.name}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Categorie</label>
+                    <p className="text-sm">{viewingProduct.category}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Prijs</label>
+                    <p className="text-lg font-semibold text-green-600">€{viewingProduct.basePrice.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Status</label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        viewingProduct.status === 'active' ? 'bg-green-100 text-green-800' :
+                        viewingProduct.status === 'inactive' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {viewingProduct.status === 'active' ? 'Actief' :
+                         viewingProduct.status === 'inactive' ? 'Inactief' : 'Stopgezet'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Product Description */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Beschrijving</label>
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <p className="text-sm whitespace-pre-wrap">{viewingProduct.description}</p>
+                </div>
+              </div>
+
+              {/* Product Details */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Levertijd</label>
+                    <p className="text-sm">{viewingProduct.deliveryTime || 'Niet opgegeven'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Bestandsformaten</label>
+                    <p className="text-sm">{viewingProduct.fileFormats || 'Niet opgegeven'}</p>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Revisierondes</label>
+                    <p className="text-sm">{viewingProduct.revisionRounds} keer</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Gebruikt in facturen</label>
+                    <p className="text-sm font-semibold">{viewingProduct.usageCount}x</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Timestamps */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Aangemaakt op</label>
+                  <p className="text-sm">
+                    {new Date(viewingProduct.createdAt.seconds * 1000).toLocaleString('nl-NL')}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Laatst bijgewerkt</label>
+                  <p className="text-sm">
+                    {new Date(viewingProduct.updatedAt.seconds * 1000).toLocaleString('nl-NL')}
+                  </p>
+                </div>
+              </div>
+
+              {/* Usage Statistics */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Gebruiksstatistieken</label>
+                <div className="p-3 bg-blue-50 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Totaal gebruikt in facturen:</span>
+                    <span className="text-sm font-semibold">{viewingProduct.usageCount}x</span>
+                  </div>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-sm">Totale omzet gegenereerd:</span>
+                    <span className="text-sm font-semibold">€{(viewingProduct.usageCount * viewingProduct.basePrice).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsViewDialogOpen(false)}>
+              Sluiten
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

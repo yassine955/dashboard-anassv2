@@ -39,8 +39,22 @@ export interface TemplateVariables {
 }
 
 // ----------------- Template Processing -----------------
+export function normalizeTemplateVariables(template: string): string {
+  // Convert single braces {variable} to double braces {{variable}}
+  // This makes it more user-friendly for people who forget the double braces
+  const singleBracePattern = /\{([^{}]+)\}/g;
+  return template.replace(singleBracePattern, (match, variableName) => {
+    // Only convert if it's not already double braces and looks like a variable name
+    if (match.startsWith('{{') || !/^[a-zA-Z][a-zA-Z0-9]*$/.test(variableName.trim())) {
+      return match;
+    }
+    return `{{${variableName}}}`;
+  });
+}
+
 export function replaceTemplateVariables(template: string, variables: TemplateVariables): string {
-  let processedTemplate = template
+  // First normalize single braces to double braces for better UX
+  let processedTemplate = normalizeTemplateVariables(template)
 
   // Replace all template variables
   Object.entries(variables).forEach(([key, value]) => {

@@ -76,7 +76,9 @@ export function NotificationBell() {
 
     notifications.forEach(notification => {
       try {
-        const notifDate = notification.createdAt.toDate ? notification.createdAt.toDate() : new Date(notification.createdAt);
+        const notifDate = notification.createdAt && typeof notification.createdAt === 'object' && 'toDate' in notification.createdAt
+          ? (notification.createdAt as any).toDate()
+          : new Date(notification.createdAt as any);
         const notifDay = new Date(notifDate.getFullYear(), notifDate.getMonth(), notifDate.getDate());
 
         if (notifDay.getTime() === today.getTime()) {
